@@ -1,0 +1,12 @@
+[Unit]
+Description=frzr automatic updates
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=frzr-deploy
+RemainAfterExit=true
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

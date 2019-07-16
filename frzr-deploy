@@ -1,0 +1,88 @@
+#! /bin/bash
+
+set -e
+set -x
+
+MANIFEST=/tmp/frzr_manifest
+MOUNT_PATH=/tmp/frzr_root
+DEPLOY_PATH=${MOUNT_PATH}/deployments
+
+if ! mountpoint -q ${MOUNT_PATH}; then
+	mkdir -p ${MOUNT_PATH}
+	mount -L frzr_root ${MOUNT_PATH}
+	sleep 5
+fi
+
+mkdir -p ${DEPLOY_PATH}
+
+# delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
+if [ -e /build_info ]; then
+	CURRENT=`cat /build_info | head -1`
+	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | head -1`
+	if [ ! -z ${TO_DELETE} ]; then
+		echo "deleting ${TO_DELETE}..."
+		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
+	fi
+fi
+
+if [ ! -z $1 ]; then
+	echo "$1" > ${MOUNT_PATH}/channel
+fi
+
+if [ -e ${MOUNT_PATH}/channel ]; then
+	REPO_URL=`cat ${MOUNT_PATH}/channel | head -1`
+else
+	echo "ERROR: no channel specified"
+	exit
+fi
+
+curl -s ${REPO_URL} > ${MANIFEST}
+CHANNEL=`cat ${MANIFEST} | head -1`
+
+VERSION=`tail -1 ${MANIFEST} | cut -f 1`
+IMG_URL=`tail -1 ${MANIFEST} | cut -f 2`
+CHECKSUM=`tail -1 ${MANIFEST} | cut -f 3`
+SUBVOL=${DEPLOY_PATH}/${CHANNEL}-${VERSION}
+IMG_FILE=${MOUNT_PATH}/${CHANNEL}-${VERSION}.img.tar.xz
+
+if [ -e ${SUBVOL} ]; then
+	echo "${CHANNEL}-${VERSION} already installed; aborting"
+	exit
+fi
+
+echo "installing ${CHANNEL}-${VERSION}..."
+
+# delete partially downloaded/installed images/subvolumes
+if [ -e ${IMG_FILE} ]; then
+	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
+	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
+		rm -f ${MOUNT_PATH}/*.img.tar.xz
+	fi
+fi
+
+if [ ! -e ${IMG_FILE} ]; then
+	curl -s ${IMG_URL} > ${IMG_FILE}
+	
+	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
+	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
+		echo "checksum does not match; aborting"
+		exit
+	fi
+fi
+
+tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
+cp ${SUBVOL}/boot/* ${MOUNT_PATH}/boot/
+
+echo "
+default ${CHANNEL}-${VERSION}
+label ${CHANNEL}-${VERSION}
+kernel ../vmlinuz-linux
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
+initrd ../initramfs-linux.img
+" > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+
+mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs
+
+rm -f ${MOUNT_PATH}/*.img.tar.xz
+
+umount ${MOUNT_PATH}

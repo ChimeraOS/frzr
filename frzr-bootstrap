@@ -1,0 +1,58 @@
+#! /bin/bash
+
+set -e
+
+MOUNT_PATH=/tmp/frzr_root
+
+if [ -z $1 ]; then
+	echo "ERROR: No install disk specified. Please specify a disk from one of the following:"
+	lsblk -p | grep disk | tr -s ' ' | cut -d' ' -f 1
+	exit
+fi
+
+DISK=$1
+
+if ! file ${DISK} | grep block > /dev/null; then
+	echo "${DISK} is not a valid disk. Please specify a disk from one of the following:"
+	lsblk -p | grep disk | tr -s ' ' | cut -d' ' -f 1
+	exit
+fi
+
+USERNAME=user
+
+if [ ! -z $2 ]; then
+	USERNAME=$2
+fi
+
+
+read -p "WARNING: ${DISK} will now be formatted. All data on the disk will be lost. Do you wish to proceed? (y/n)" -n 1 -r
+echo
+
+if [[ ! ${REPLY} =~ ^[Yy]$ ]]; then
+	echo "Aborting install"
+	exit
+fi
+
+mkdir -p ${MOUNT_PATH}
+
+parted --script ${DISK} \
+	mklabel msdos \
+	mkpart primary 1mb 100%
+
+mkfs.btrfs -L frzr_root -f ${DISK}1
+mount -t btrfs -o nodatacow ${DISK}1 ${MOUNT_PATH}
+
+btrfs subvolume create ${MOUNT_PATH}/var
+btrfs subvolume create ${MOUNT_PATH}/home
+
+mkdir -p ${MOUNT_PATH}/home/${USERNAME}
+chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
+
+mkdir ${MOUNT_PATH}/boot
+
+# install & setup bootloader
+mkdir -p ${MOUNT_PATH}/boot/syslinux
+extlinux --install ${MOUNT_PATH}/boot
+dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+
+parted ${DISK} set 1 boot on
