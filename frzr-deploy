@@ -36,7 +36,7 @@ else
 	exit
 fi
 
-curl -s ${REPO_URL} > ${MANIFEST}
+curl -L -s ${REPO_URL} > ${MANIFEST}
 CHANNEL=`cat ${MANIFEST} | head -1`
 
 VERSION=`tail -1 ${MANIFEST} | cut -f 1`
@@ -61,7 +61,7 @@ if [ -e ${IMG_FILE} ]; then
 fi
 
 if [ ! -e ${IMG_FILE} ]; then
-	curl -s ${IMG_URL} > ${IMG_FILE}
+	curl -L ${IMG_URL} > ${IMG_FILE}
 	
 	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
@@ -71,7 +71,7 @@ if [ ! -e ${IMG_FILE} ]; then
 fi
 
 tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
-cp ${SUBVOL}/boot/* ${MOUNT_PATH}/boot/
+cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 
 echo "
 default ${CHANNEL}-${VERSION}
