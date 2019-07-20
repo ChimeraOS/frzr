@@ -1,0 +1,12 @@
+#! /bin/bash
+
+set -e
+
+ROOT_PATH=/frzr_root
+
+if ! mountpoint -q ${ROOT_PATH}; then
+	echo "Not currently running a frzr deployment"
+	exit 1
+fi
+
+cat ${ROOT_PATH}/build_info | head -1

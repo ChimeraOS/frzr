@@ -49,6 +49,8 @@ mkdir -p ${MOUNT_PATH}/home/${USERNAME}
 chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
 
 mkdir ${MOUNT_PATH}/boot
+mkdir -p ${MOUNT_PATH}/etc
+mkdir -p ${MOUNT_PATH}/.etc
 
 # install & setup bootloader
 mkdir -p ${MOUNT_PATH}/boot/syslinux

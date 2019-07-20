@@ -4,7 +4,12 @@ set -e
 set -x
 
 MANIFEST=/tmp/frzr_manifest
-MOUNT_PATH=/tmp/frzr_root
+MOUNT_PATH=/frzr_root
+
+if ! mountpoint -q ${MOUNT_PATH}; then
+	MOUNT_PATH=/tmp/frzr_root
+fi
+
 DEPLOY_PATH=${MOUNT_PATH}/deployments
 
 if ! mountpoint -q ${MOUNT_PATH}; then
@@ -16,8 +21,8 @@ fi
 mkdir -p ${DEPLOY_PATH}
 
 # delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
-if [ -e /build_info ]; then
-	CURRENT=`cat /build_info | head -1`
+if frzr-release; then
+	CURRENT=`frzr-release`
 	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | head -1`
 	if [ ! -z ${TO_DELETE} ]; then
 		echo "deleting ${TO_DELETE}..."
@@ -86,3 +91,5 @@ mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlin
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
 umount ${MOUNT_PATH}
+
+echo "deployment complete; restart to boot into ${CHANNEL}-${VERSION}"

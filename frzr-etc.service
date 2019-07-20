@@ -1,0 +1,12 @@
+[Unit]
+Description=frzr etc overlay
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=mount -t overlay overlay -o lowerdir=/etc,upperdir=/frzr_root/etc,workdir=/frzr_root/.etc,index=off /etc
+RemainAfterExit=true
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
