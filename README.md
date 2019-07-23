@@ -1,8 +1,8 @@
 # frzr
 
-frzr is a deployment and automatic update mechanism for operating systems. It deploys pre-built systems via read-only btrfs subvolumes, thus ensuring safe and atomic updates.
+frzr is a deployment and automatic update mechanism for operating systems. It deploys pre-built systems via read-only btrfs subvolumes, thus ensuring safe and atomic updates that never interrupt the user.
 
-`/home` and `/var` are separate subvolumes mounted into the read-only root.
+Updated system images are downloaded at boot time and deployed to an entirely separate subvolume so as not to interfere with the currently running system. Upon next boot, the newly installed system is started and the old one is deleted, completely seamlessly and invisibly.
+
+Persistence is handled by making `/home` and `/var` separate subvolumes mounted into the read-only root.
 `/etc` is made read-write via overlayfs.
-
-Updates are checked once at boot time. If there is an update available the full image is downloaded and deployed to an entirely separate subvolume so as not to interfere with the running system. The updated subvolume will be used when the system is next restarted and the old subvolume deleted once it is no longer in use.
