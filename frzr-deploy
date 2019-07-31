@@ -3,6 +3,11 @@
 set -e
 set -x
 
+if [ $EUID -ne 0 ]; then
+	echo "$0 must be run as root"
+	exit 1
+fi
+
 MANIFEST=/tmp/frzr_manifest
 MOUNT_PATH=/frzr_root
 
@@ -21,7 +26,7 @@ fi
 mkdir -p ${DEPLOY_PATH}
 
 # delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
-if frzr-release; then
+if frzr-release > /dev/null; then
 	CURRENT=`frzr-release`
 	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | head -1`
 	if [ ! -z ${TO_DELETE} ]; then
