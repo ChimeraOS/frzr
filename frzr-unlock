@@ -16,10 +16,12 @@ fi
 DEPLOYMENT=$(frzr-release)
 
 mount -o remount,rw /
-btrfs property set -ts /frzr_root/deployment/${DEPLOYMENT} ro false
+btrfs property set -ts /frzr_root/deployments/${DEPLOYMENT} ro false
 umount /etc
+systemctl disable frzr-etc
+sed -i -e 's/,ro,/,rw,/' /etc/fstab
 
-if [ -d /usr/var/lib/pacman/local ]; then
+if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
 	mkdir -p /var/lib/pacman
 	cp -r /usr/var/lib/pacman/local /var/lib/pacman/
 fi
