@@ -1,41 +1,37 @@
 #! /bin/bash
 
 set -e
+set -x
 
 if [ $EUID -ne 0 ]; then
-	echo "$0 must be run as root"
+	echo "$(basename $0) must be run as root"
 	exit 1
 fi
 
 MOUNT_PATH=/tmp/frzr_root
 
-if [ -z $1 ]; then
-	echo "ERROR: No install disk specified. Please specify a disk from one of the following:"
-	lsblk -p | grep disk | tr -s ' ' | cut -d' ' -f 1
-	exit
-fi
+device_list=()
+device_output=`lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t'`
 
-DISK=$1
+while read -r line; do
+	name=/dev/`echo "$line" | cut -f 1`
+	model=`echo "$line" | cut -f 2`
+	size=`echo "$line" | cut -f 3`
+	device_list+=($name)
+	device_list+=("$model ($size)")
+done <<< "$device_output"
 
-if ! file ${DISK} | grep block > /dev/null; then
-	echo "${DISK} is not a valid disk. Please specify a disk from one of the following:"
-	lsblk -p | grep disk | tr -s ' ' | cut -d' ' -f 1
-	exit
+DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${device_list[@]}" 3>&1 1>&2 2>&3)
+
+if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
+	echo "installation aborted"
+	exit 1
 fi
 
 USERNAME=user
 
-if [ ! -z $2 ]; then
-	USERNAME=$2
-fi
-
-
-read -p "WARNING: ${DISK} will now be formatted. All data on the disk will be lost. Do you wish to proceed? (y/n)" -n 1 -r
-echo
-
-if [[ ! ${REPLY} =~ ^[Yy]$ ]]; then
-	echo "Aborting install"
-	exit
+if [ ! -z $1 ]; then
+	USERNAME=$1
 fi
 
 mkdir -p ${MOUNT_PATH}

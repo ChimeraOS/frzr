@@ -4,7 +4,7 @@ set -e
 set -x
 
 if [ $EUID -ne 0 ]; then
-	echo "$0 must be run as root"
+	echo "$(basename $0) must be run as root"
 	exit 1
 fi
 
@@ -91,7 +91,7 @@ append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 
-mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs
+mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
