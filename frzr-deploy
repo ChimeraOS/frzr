@@ -37,6 +37,8 @@ fi
 
 if [ ! -z $1 ]; then
 	echo "$1" > ${MOUNT_PATH}/channel
+else
+	echo "https://gamer-os.github.io/gamer-os/repos/default" > ${MOUNT_PATH}/channel
 fi
 
 if [ -e ${MOUNT_PATH}/channel ]; then
