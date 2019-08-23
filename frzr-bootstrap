@@ -10,6 +10,8 @@ fi
 
 MOUNT_PATH=/tmp/frzr_root
 
+UEFI="-d /sys/firmware/efi/efivars"
+
 device_list=()
 device_output=`lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t'`
 
@@ -37,11 +39,15 @@ fi
 mkdir -p ${MOUNT_PATH}
 
 parted --script ${DISK} \
+	mklabel efi \
+	mkpart primary fat32 1mb 512MiB
+
+parted --script ${DISK} \
 	mklabel msdos \
 	mkpart primary 1mb 100%
 
-mkfs.btrfs -L frzr_root -f ${DISK}1
-mount -t btrfs -o nodatacow ${DISK}1 ${MOUNT_PATH}
+mkfs.btrfs -L frzr_root -f ${DISK}2
+mount -t btrfs -o nodatacow ${DISK}2 ${MOUNT_PATH}
 
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
@@ -53,9 +59,18 @@ mkdir ${MOUNT_PATH}/boot
 mkdir -p ${MOUNT_PATH}/etc
 mkdir -p ${MOUNT_PATH}/.etc
 
-# install & setup bootloader
-mkdir -p ${MOUNT_PATH}/boot/syslinux
-extlinux --install ${MOUNT_PATH}/boot
-dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+mount -t vfat ${DISK}1 ${MOUNT_PATH}/boot/
 
-parted ${DISK} set 1 boot on
+# install & setup bootloader
+if [ $UEFI ]; then
+	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
+	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux
+	efibootmgr --create --disk ${DISK} --part 1 --loader /EFI/syslinux/syslinux.efi --label "gamerOS" --verbose
+else
+	mkdir -p ${MOUNT_PATH}/boot/syslinux
+	extlinux --install ${MOUNT_PATH}/boot
+	dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+fi
+
+parted ${DISK} set 1 esp on
+parted ${DISK} set 2 boot on
