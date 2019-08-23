@@ -23,6 +23,12 @@ if ! mountpoint -q ${MOUNT_PATH}; then
 	sleep 5
 fi
 
+if ! mountpoint -q ${MOUNT_PATH}/boot; then
+	mkdir -p ${MOUNT_PATH}/boot
+	mount -L efi ${MOUNT_PATH}/boot
+	sleep 5
+fi
+
 mkdir -p ${DEPLOY_PATH}
 
 # delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
@@ -83,18 +89,25 @@ fi
 tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 
+# check if this is a UEFI system
+if [ -d /sys/firmware/efi/efivars ]; then
+	SYSLINUXCONF="/boot/EFI/syslinux/syslinux.cfg"
+else
+	SYSLINUXCONF="/boot/syslinux/syslinux.cfg"
+fi
+
 echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
 initrd ../initramfs-linux.img
-" > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+" > ${MOUNT_PATH}${SYSLINUXCONF}
 
 mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
-umount ${MOUNT_PATH}
+umount -R ${MOUNT_PATH}
 
 echo "deployment complete; restart to boot into ${CHANNEL}-${VERSION}"
