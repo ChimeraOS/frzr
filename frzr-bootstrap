@@ -39,12 +39,10 @@ fi
 mkdir -p ${MOUNT_PATH}
 
 parted --script ${DISK} \
-	mklabel efi \
-	mkpart primary fat32 1mb 512MiB
-
-parted --script ${DISK} \
 	mklabel msdos \
-	mkpart primary 1mb 100%
+	mkpart primary fat32 1MiB 512MiB \
+	set 1 esp on \
+	mkpart primary 512MiB 100%
 
 mkfs.btrfs -L frzr_root -f ${DISK}2
 mount -t btrfs -o nodatacow ${DISK}2 ${MOUNT_PATH}
@@ -59,6 +57,8 @@ mkdir ${MOUNT_PATH}/boot
 mkdir -p ${MOUNT_PATH}/etc
 mkdir -p ${MOUNT_PATH}/.etc
 
+mkfs.vfat ${DISK}1
+dosfslabel ${DISK}1 efi
 mount -t vfat ${DISK}1 ${MOUNT_PATH}/boot/
 
 # install & setup bootloader
@@ -72,5 +72,4 @@ else
 	dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
 fi
 
-parted ${DISK} set 1 esp on
-parted ${DISK} set 2 boot on
+parted ${DISK} set 1 boot on
