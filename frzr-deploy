@@ -91,18 +91,22 @@ cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 
 # check if this is a UEFI system
 if [ -d /sys/firmware/efi/efivars ]; then
-	SYSLINUXCONF="/boot/EFI/syslinux/syslinux.cfg"
+echo "
+default ${CHANNEL}-${VERSION}
+label ${CHANNEL}-${VERSION}
+kernel ../../vmlinuz-linux
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
+initrd ../../initramfs-linux.img
+" > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
 else
-	SYSLINUXCONF="/boot/syslinux/syslinux.cfg"
-fi
-
 echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
 initrd ../initramfs-linux.img
-" > ${MOUNT_PATH}${SYSLINUXCONF}
+" > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+fi
 
 mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs || true # workaround for initrd warning
 
