@@ -95,7 +95,7 @@ echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
 initrd ../../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
 else
@@ -103,12 +103,12 @@ echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
 
-mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs || true # workaround for initrd warning
+arch-chroot ${MOUNT_PATH} mkinitcpio -p linux || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
