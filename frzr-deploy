@@ -82,7 +82,7 @@ if [ ! -e ${IMG_FILE} ]; then
 	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 		echo "checksum does not match; aborting"
-		exit
+		exit 1
 	fi
 fi
 
