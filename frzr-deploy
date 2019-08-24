@@ -108,7 +108,7 @@ initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
 
-arch-chroot ${MOUNT_PATH} mkinitcpio -p linux || true # workaround for initrd warning
+mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -c ${SUBVOL}/etc/mkinitcpio.conf || true # workaround for initrd warning || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
