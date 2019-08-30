@@ -11,6 +11,8 @@ fi
 MANIFEST=/tmp/frzr_manifest
 MOUNT_PATH=/frzr_root
 
+UEFI="-d /sys/firmware/efi/efivars"
+
 if ! mountpoint -q ${MOUNT_PATH}; then
 	MOUNT_PATH=/tmp/frzr_root
 fi
@@ -23,7 +25,7 @@ if ! mountpoint -q ${MOUNT_PATH}; then
 	sleep 5
 fi
 
-if ! mountpoint -q ${MOUNT_PATH}/boot; then
+if [ $UEFI ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
 	mkdir -p ${MOUNT_PATH}/boot
 	mount -L efi ${MOUNT_PATH}/boot
 	sleep 5
@@ -90,7 +92,7 @@ tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 
 # check if this is a UEFI system
-if [ -d /sys/firmware/efi/efivars ]; then
+if [ $UEFI ]; then
 echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
