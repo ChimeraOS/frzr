@@ -40,8 +40,10 @@ parted --script ${DISK} \
 	mklabel msdos \
 	mkpart primary 1mb 100%
 
-mkfs.btrfs -L frzr_root -f ${DISK}1
-mount -t btrfs -o nodatacow ${DISK}1 ${MOUNT_PATH}
+PARTITION=$(ls $DISK* |cut -d " " -f 1 |head -n 2 |tail -n 1)
+
+mkfs.btrfs -L frzr_root -f ${PARTITION}
+mount -t btrfs -o nodatacow ${PARTITION} ${MOUNT_PATH}
 
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
