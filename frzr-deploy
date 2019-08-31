@@ -11,6 +11,8 @@ fi
 MANIFEST=/tmp/frzr_manifest
 MOUNT_PATH=/frzr_root
 
+UEFI="-d /sys/firmware/efi/efivars"
+
 if ! mountpoint -q ${MOUNT_PATH}; then
 	MOUNT_PATH=/tmp/frzr_root
 fi
@@ -20,6 +22,12 @@ DEPLOY_PATH=${MOUNT_PATH}/deployments
 if ! mountpoint -q ${MOUNT_PATH}; then
 	mkdir -p ${MOUNT_PATH}
 	mount -L frzr_root ${MOUNT_PATH}
+	sleep 5
+fi
+
+if [ $UEFI ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
+	mkdir -p ${MOUNT_PATH}/boot
+	mount -L efi ${MOUNT_PATH}/boot
 	sleep 5
 fi
 
@@ -76,25 +84,36 @@ if [ ! -e ${IMG_FILE} ]; then
 	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 		echo "checksum does not match; aborting"
-		exit
+		exit 1
 	fi
 fi
 
 tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 
+# check if this is a UEFI system
+if [ $UEFI ]; then
+echo "
+default ${CHANNEL}-${VERSION}
+label ${CHANNEL}-${VERSION}
+kernel ../../vmlinuz-linux
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
+initrd ../../initramfs-linux.img
+" > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
+else
 echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+fi
 
-mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -A btrfs || true # workaround for initrd warning
+mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -c ${SUBVOL}/etc/mkinitcpio.conf || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
-umount ${MOUNT_PATH}
+umount -R ${MOUNT_PATH}
 
 echo "deployment complete; restart to boot into ${CHANNEL}-${VERSION}"
