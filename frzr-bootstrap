@@ -38,6 +38,9 @@ fi
 
 mkdir -p ${MOUNT_PATH}
 
+PART1=$(ls ${DISK}* | grep "1$")
+PART2=$(ls ${DISK}* | grep "2$")
+
 # create partition table and create and mount the btrfs filesystem
 if [ $UEFI ]; then
 	parted --script ${DISK} \
@@ -46,15 +49,15 @@ if [ $UEFI ]; then
 		set 1 esp on \
 		mkpart primary 512MiB 100%
 
-		mkfs.btrfs -L frzr_root -f ${DISK}2
-		mount -t btrfs -o nodatacow ${DISK}2 ${MOUNT_PATH}
+		mkfs.btrfs -L frzr_root -f ${PART2}
+		mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 else
 	parted --script ${DISK} \
 		mklabel msdos \
 		mkpart primary 1MiB 100%
 
-		mkfs.btrfs -L frzr_root -f ${DISK}1
-		mount -t btrfs -o nodatacow ${DISK}1 ${MOUNT_PATH}
+		mkfs.btrfs -L frzr_root -f ${PART1}
+		mount -t btrfs -o nodatacow ${PART1} ${MOUNT_PATH}
 fi
 
 btrfs subvolume create ${MOUNT_PATH}/var
@@ -70,9 +73,9 @@ mkdir -p ${MOUNT_PATH}/.etc
 # install & setup bootloader
 if [ $UEFI ]; then
 	# setup boot partition
-	mkfs.vfat ${DISK}1
-	dosfslabel ${DISK}1 efi
-	mount -t vfat ${DISK}1 ${MOUNT_PATH}/boot/
+	mkfs.vfat ${PART1}
+	dosfslabel ${PART1} efi
+	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
 
 	# setup basic syslinux configuration
 	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
