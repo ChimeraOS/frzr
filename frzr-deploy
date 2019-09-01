@@ -90,6 +90,7 @@ fi
 
 tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
+cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
 
 # check if this is a UEFI system
 if [ $UEFI ]; then
@@ -109,8 +110,6 @@ append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
-
-mkinitcpio -g ${MOUNT_PATH}/boot/initramfs-linux.img -k ${MOUNT_PATH}/boot/vmlinuz-linux -r ${SUBVOL} -c ${SUBVOL}/etc/mkinitcpio.conf || true # workaround for initrd warning
 
 rm -f ${MOUNT_PATH}/*.img.tar.xz
 
