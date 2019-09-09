@@ -27,7 +27,7 @@ fi
 
 if [ $UEFI ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
 	mkdir -p ${MOUNT_PATH}/boot
-	mount -L efi ${MOUNT_PATH}/boot
+	mount -L frzr_efi ${MOUNT_PATH}/boot
 	sleep 5
 fi
 

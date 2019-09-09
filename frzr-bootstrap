@@ -74,7 +74,7 @@ mkdir -p ${MOUNT_PATH}/.etc
 if [ $UEFI ]; then
 	# setup boot partition
 	mkfs.vfat ${PART1}
-	dosfslabel ${PART1} efi
+	dosfslabel ${PART1} frzr_efi
 	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
 
 	# setup basic syslinux configuration
