@@ -80,7 +80,7 @@ if [ $UEFI ]; then
 	# setup basic syslinux configuration
 	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
 	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux
-	efibootmgr --create --disk ${DISK} --part 1 --loader /EFI/syslinux/syslinux.efi --label "gamerOS"
+	efibootmgr --create --disk ${DISK} --part 1 --loader /EFI/syslinux/syslinux.efi --label "frzr"
 else
 	mkdir -p ${MOUNT_PATH}/boot/syslinux
 	extlinux --install ${MOUNT_PATH}/boot
