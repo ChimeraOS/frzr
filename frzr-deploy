@@ -98,7 +98,7 @@ echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
 else
@@ -106,7 +106,7 @@ echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
 kernel ../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
