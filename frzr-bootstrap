@@ -46,8 +46,8 @@ if [ $UEFI ]; then
 		set 1 esp on \
 		mkpart primary 512MiB 100%
 
-	PART1=$(ls ${DISK}* | grep "1$")
-	PART2=$(ls ${DISK}* | grep "2$")
+	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
+	PART2=$(ls ${DISK}* | grep "${DISK}.*2$")
 	mkfs.btrfs -L frzr_root -f ${PART2}
 	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 else
@@ -55,7 +55,7 @@ else
 		mklabel msdos \
 		mkpart primary 1MiB 100%
 
-	PART1=$(ls ${DISK}* | grep "1$")
+	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
 	mkfs.btrfs -L frzr_root -f ${PART1}
 	mount -t btrfs -o nodatacow ${PART1} ${MOUNT_PATH}
 fi
