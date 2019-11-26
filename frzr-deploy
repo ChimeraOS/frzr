@@ -116,3 +116,7 @@ rm -f ${MOUNT_PATH}/*.img.tar.xz
 umount -R ${MOUNT_PATH}
 
 echo "deployment complete; restart to boot into ${CHANNEL}-${VERSION}"
+
+if command -v frzr-postupdate-script > /dev/null; then
+	frzr-postupdate-script
+fi
