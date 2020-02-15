@@ -17,6 +17,9 @@ DEPLOYMENT=$(frzr-release)
 
 mount -o remount,rw /
 btrfs property set -ts /frzr_root/deployments/${DEPLOYMENT} ro false
+systemctl disable frzr-etc
+systemctl stop avahi-daemon # required for next command
+umount /etc
 sed -i -e 's/,ro,/,rw,/' /etc/fstab
 
 if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
@@ -24,4 +27,5 @@ if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
 	cp -r /usr/var/lib/pacman/local /var/lib/pacman/
 fi
 
+systemctl start avahi-daemon
 echo "frzr deployment ${DEPLOYMENT} unlocked"
