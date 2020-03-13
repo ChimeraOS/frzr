@@ -52,7 +52,7 @@ if [ $UEFI ]; then
 	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 else
 	parted --script ${DISK} \
-		mklabel gpt \
+		mklabel msdos \
 		mkpart primary 1MiB 100%
 
 	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
