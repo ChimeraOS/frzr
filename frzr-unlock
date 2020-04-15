@@ -4,7 +4,7 @@ set -e
 
 
 if [ $EUID -ne 0 ]; then
-	echo "$(basename $0) must be run as root"
+	echo "$(basename "$0") must be run as root"
 	exit 1
 fi
 
@@ -16,7 +16,7 @@ fi
 DEPLOYMENT=$(frzr-release)
 
 mount -o remount,rw /
-btrfs property set -ts /frzr_root/deployments/${DEPLOYMENT} ro false
+btrfs property set -ts /frzr_root/deployments/"${DEPLOYMENT}" ro false
 sed -i -e 's/,ro,/,rw,/' /etc/fstab
 
 if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
