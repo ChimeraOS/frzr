@@ -4,7 +4,7 @@ set -e
 set -x
 
 if [ $EUID -ne 0 ]; then
-	echo "$(basename $0) must be run as root"
+	echo "$(basename "$0") must be run as root"
 	exit 1
 fi
 
@@ -25,7 +25,7 @@ if ! mountpoint -q ${MOUNT_PATH}; then
 	sleep 5
 fi
 
-if [ $UEFI ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
+if [ "$UEFI" ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
 	mkdir -p ${MOUNT_PATH}/boot
 	mount -L frzr_efi ${MOUNT_PATH}/boot
 	sleep 5
@@ -35,35 +35,35 @@ mkdir -p ${DEPLOY_PATH}
 
 # delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
 if frzr-release > /dev/null; then
-	CURRENT=`frzr-release`
-	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | head -1`
-	if [ ! -z ${TO_DELETE} ]; then
+	CURRENT=$(frzr-release)
+	TO_DELETE=$(ls -1 ${DEPLOY_PATH} | grep -v "${CURRENT}" | head -1)
+	if [ -n "${TO_DELETE}" ]; then
 		echo "deleting ${TO_DELETE}..."
-		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
+		btrfs subvolume delete ${DEPLOY_PATH}/"${TO_DELETE}" || true
 	fi
 fi
 
-if [ ! -z $1 ]; then
+if [ -n "$1" ]; then
 	echo "$1" > ${MOUNT_PATH}/channel
 fi
 
 if [ -e ${MOUNT_PATH}/channel ]; then
-	REPO_URL=`cat ${MOUNT_PATH}/channel | head -1`
+	REPO_URL=$(cat ${MOUNT_PATH}/channel | head -1)
 else
 	echo "ERROR: no channel specified"
 	exit
 fi
 
-curl -L -s ${REPO_URL} > ${MANIFEST}
-CHANNEL=`cat ${MANIFEST} | head -1`
+curl -L -s "${REPO_URL}" > ${MANIFEST}
+CHANNEL=$(cat ${MANIFEST} | head -1)
 
-VERSION=`tail -1 ${MANIFEST} | cut -f 1`
-IMG_URL=`tail -1 ${MANIFEST} | cut -f 2`
-CHECKSUM=`tail -1 ${MANIFEST} | cut -f 3`
+VERSION=$(tail -1 ${MANIFEST} | cut -f 1)
+IMG_URL=$(tail -1 ${MANIFEST} | cut -f 2)
+CHECKSUM=$(tail -1 ${MANIFEST} | cut -f 3)
 SUBVOL=${DEPLOY_PATH}/${CHANNEL}-${VERSION}
 IMG_FILE=${MOUNT_PATH}/${CHANNEL}-${VERSION}.img.tar.xz
 
-if [ -e ${SUBVOL} ]; then
+if [ -e "${SUBVOL}" ]; then
 	echo "${CHANNEL}-${VERSION} already installed; aborting"
 	exit
 fi
@@ -71,29 +71,29 @@ fi
 echo "installing ${CHANNEL}-${VERSION}..."
 
 # delete partially downloaded/installed images/subvolumes
-if [ -e ${IMG_FILE} ]; then
-	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
+if [ -e "${IMG_FILE}" ]; then
+	CHECKSUM2=$(sha256sum "${IMG_FILE}" | cut -d' ' -f 1)
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 		rm -f ${MOUNT_PATH}/*.img.tar.xz
 	fi
 fi
 
-if [ ! -e ${IMG_FILE} ]; then
-	curl -L ${IMG_URL} > ${IMG_FILE}
+if [ ! -e "${IMG_FILE}" ]; then
+	curl -L "${IMG_URL}" > "${IMG_FILE}"
 	
-	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
+	CHECKSUM2=$(sha256sum "${IMG_FILE}" | cut -d' ' -f 1)
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 		echo "checksum does not match; aborting"
 		exit 1
 	fi
 fi
 
-tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
-cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
-cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
+tar xfO "${IMG_FILE}" | btrfs receive ${DEPLOY_PATH}
+cp "${SUBVOL}"/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
+cp "${SUBVOL}"/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
 
 # check if this is a UEFI system
-if [ $UEFI ]; then
+if [ "$UEFI" ]; then
 echo "
 default ${CHANNEL}-${VERSION}
 label ${CHANNEL}-${VERSION}
