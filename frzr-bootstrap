@@ -4,7 +4,7 @@ set -e
 set -x
 
 if [ $EUID -ne 0 ]; then
-	echo "$(basename $0) must be run as root"
+	echo "$(basename "$0") must be run as root"
 	exit 1
 fi
 
@@ -13,12 +13,12 @@ MOUNT_PATH=/tmp/frzr_root
 UEFI="-d /sys/firmware/efi/efivars"
 
 device_list=()
-device_output=`lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t'`
+device_output=$(lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t')
 
 while read -r line; do
-	name=/dev/`echo "$line" | cut -f 1`
-	model=`echo "$line" | cut -f 2`
-	size=`echo "$line" | cut -f 3`
+	name=/dev/$(echo "$line" | cut -f 1)
+	model=$(echo "$line" | cut -f 2)
+	size=$(echo "$line" | cut -f 3)
 	device_list+=($name)
 	device_list+=("$model ($size)")
 done <<< "$device_output"
@@ -32,59 +32,59 @@ fi
 
 USERNAME=user
 
-if [ ! -z $1 ]; then
+if [ -n "$1" ]; then
 	USERNAME=$1
 fi
 
 mkdir -p ${MOUNT_PATH}
 
 # create partition table and create and mount the btrfs filesystem
-if [ $UEFI ]; then
-	parted --script ${DISK} \
+if [ "$UEFI" ]; then
+	parted --script "${DISK}" \
 		mklabel gpt \
 		mkpart primary fat32 1MiB 512MiB \
 		set 1 esp on \
 		mkpart primary 512MiB 100%
 
-	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
-	PART2=$(ls ${DISK}* | grep "${DISK}.*2$")
-	mkfs.btrfs -L frzr_root -f ${PART2}
-	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
+	PART1=$(ls "${DISK}"* | grep "${DISK}.*1$")
+	PART2=$(ls "${DISK}"* | grep "${DISK}.*2$")
+	mkfs.btrfs -L frzr_root -f "${PART2}"
+	mount -t btrfs -o nodatacow "${PART2}" ${MOUNT_PATH}
 else
-	parted --script ${DISK} \
+	parted --script "${DISK}" \
 		mklabel msdos \
 		mkpart primary 1MiB 100%
 
-	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
-	mkfs.btrfs -L frzr_root -f ${PART1}
-	mount -t btrfs -o nodatacow ${PART1} ${MOUNT_PATH}
+	PART1=$(ls "${DISK}"* | grep "${DISK}.*1$")
+	mkfs.btrfs -L frzr_root -f "${PART1}"
+	mount -t btrfs -o nodatacow "${PART1}" ${MOUNT_PATH}
 fi
 
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
 
-mkdir -p ${MOUNT_PATH}/home/${USERNAME}
-chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
+mkdir -p ${MOUNT_PATH}/home/"${USERNAME}"
+chown 1000:1000 ${MOUNT_PATH}/home/"${USERNAME}"
 
 mkdir ${MOUNT_PATH}/boot
 mkdir -p ${MOUNT_PATH}/etc
 mkdir -p ${MOUNT_PATH}/.etc
 
 # install & setup bootloader
-if [ $UEFI ]; then
+if [ "$UEFI" ]; then
 	# setup boot partition
-	mkfs.vfat ${PART1}
-	dosfslabel ${PART1} frzr_efi
-	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
+	mkfs.vfat "${PART1}"
+	dosfslabel "${PART1}" frzr_efi
+	mount -t vfat "${PART1}" ${MOUNT_PATH}/boot/
 
 	# setup basic syslinux configuration
 	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
 	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux
-	efibootmgr --create --disk ${DISK} --part 1 --loader /EFI/syslinux/syslinux.efi --label "frzr"
+	efibootmgr --create --disk "${DISK}" --part 1 --loader /EFI/syslinux/syslinux.efi --label "frzr"
 else
 	mkdir -p ${MOUNT_PATH}/boot/syslinux
 	extlinux --install ${MOUNT_PATH}/boot
-	dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+	dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of="${DISK}"
 fi
 
-parted ${DISK} set 1 boot on
+parted "${DISK}" set 1 boot on
