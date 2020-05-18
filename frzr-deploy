@@ -1,14 +1,35 @@
 #! /bin/bash
 
-set -e
-set -x
+get_img_url() {
+    CHANNEL=$1
+
+    result=$(jq '[
+          sort_by(.created_at) |
+          reverse |
+          .[] |
+          { name: .name, prerelease: .prerelease, state: .assets[].state, url: .assets[].browser_download_url } |
+          select(.url|test("img")) |
+          select(.state=="uploaded")
+        ]')
+
+    if [ "$CHANNEL" == "testing" ]; then
+        result=$(echo $result | jq '[ .[] | select(.name|test("UNSTABLE")|not) ]')
+    elif [ "$CHANNEL" == "stable" ]; then
+        result=$(echo $result | jq '[ .[] | select(.prerelease==false) ]')
+    fi
+
+    echo $result | jq 'first | .url' | sed 's/"//g'
+}
+
 
 if [ $EUID -ne 0 ]; then
 	echo "$(basename $0) must be run as root"
 	exit 1
 fi
 
-MANIFEST=/tmp/frzr_manifest
+set -e
+set -x
+
 MOUNT_PATH=/frzr_root
 
 UEFI="-d /sys/firmware/efi/efivars"
@@ -44,37 +65,47 @@ if frzr-release > /dev/null; then
 fi
 
 if [ ! -z $1 ]; then
-	echo "$1" > ${MOUNT_PATH}/channel
+	echo "$1" > "${MOUNT_PATH}/source"
 fi
 
-if [ -e ${MOUNT_PATH}/channel ]; then
-	REPO_URL=`cat ${MOUNT_PATH}/channel | head -1`
+if [ -e "${MOUNT_PATH}/source" ]; then
+	SOURCE_STR=`cat "${MOUNT_PATH}/source" | head -1`
+elif [ -e "${MOUNT_PATH}/channel" ]; then # for compatibility
+	CHANNEL="stable"
+	if grep "testing" "${MOUNT_PATH}/channel" > /dev/null; then
+		CHANNEL="testing"
+	fi
+	echo "gamer-os/gamer-os:${CHANNEL}" > "${MOUNT_PATH}/source"
 else
-	echo "ERROR: no channel specified"
+	echo "ERROR: no source specified"
 	exit
 fi
 
-curl -L -s ${REPO_URL} > ${MANIFEST}
-CHANNEL=`cat ${MANIFEST} | head -1`
+SOURCE=$(echo "${SOURCE_STR}" | cut -f 1 -d ':')
+CHANNEL=$(echo "${SOURCE_STR}" | cut -f 2 -d ':')
 
-VERSION=`tail -1 ${MANIFEST} | cut -f 1`
-IMG_URL=`tail -1 ${MANIFEST} | cut -f 2`
-CHECKSUM=`tail -1 ${MANIFEST} | cut -f 3`
-SUBVOL=${DEPLOY_PATH}/${CHANNEL}-${VERSION}
-IMG_FILE=${MOUNT_PATH}/${CHANNEL}-${VERSION}.img.tar.xz
+RELEASES_URL="https://api.github.com/repos/${SOURCE}/releases"
+
+IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
+FILE_NAME=$(basename ${IMG_URL})
+NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+BASE_URL=$(dirname "${IMG_URL}")
+CHECKSUM=$(curl -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
+SUBVOL="${DEPLOY_PATH}/${NAME}"
+IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
 
 if [ -e ${SUBVOL} ]; then
-	echo "${CHANNEL}-${VERSION} already installed; aborting"
+	echo "${NAME} already installed; aborting"
 	exit
 fi
 
-echo "installing ${CHANNEL}-${VERSION}..."
+echo "installing ${NAME}..."
 
 # delete partially downloaded/installed images/subvolumes
 if [ -e ${IMG_FILE} ]; then
 	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
-		rm -f ${MOUNT_PATH}/*.img.tar.xz
+		rm -f ${MOUNT_PATH}/*.img.*
 	fi
 fi
 
@@ -95,29 +126,29 @@ cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
 # check if this is a UEFI system
 if [ $UEFI ]; then
 echo "
-default ${CHANNEL}-${VERSION}
-label ${CHANNEL}-${VERSION}
+default ${NAME}
+label ${NAME}
 kernel ../../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
 else
 echo "
-default ${CHANNEL}-${VERSION}
-label ${CHANNEL}-${VERSION}
+default ${NAME}
+label ${NAME}
 kernel ../vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${CHANNEL}-${VERSION} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
 
-rm -f ${MOUNT_PATH}/*.img.tar.xz
+rm -f ${MOUNT_PATH}/*.img.*
 
 umount -R ${MOUNT_PATH}
 
 rm -rf /var/lib/pacman # undo frzr-unlock
 
-echo "deployment complete; restart to boot into ${CHANNEL}-${VERSION}"
+echo "deployment complete; restart to boot into ${NAME}"
 
 if command -v frzr-postupdate-script > /dev/null; then
 	frzr-postupdate-script
