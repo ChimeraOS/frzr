@@ -72,7 +72,7 @@ if [ -e "${MOUNT_PATH}/source" ]; then
 	SOURCE_STR=`cat "${MOUNT_PATH}/source" | head -1`
 elif [ -e "${MOUNT_PATH}/channel" ]; then # for compatibility
 	CHANNEL="stable"
-	if grep "testing" "${MOUNT_PATH}/channel" > /dev/null; then
+	if grep "test" "${MOUNT_PATH}/channel" > /dev/null; then
 		CHANNEL="testing"
 	fi
 	echo "gamer-os/gamer-os:${CHANNEL}" > "${MOUNT_PATH}/source"
