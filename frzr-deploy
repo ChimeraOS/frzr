@@ -76,6 +76,7 @@ elif [ -e "${MOUNT_PATH}/channel" ]; then # for compatibility
 		CHANNEL="testing"
 	fi
 	echo "gamer-os/gamer-os:${CHANNEL}" > "${MOUNT_PATH}/source"
+	SOURCE_STR=`cat "${MOUNT_PATH}/source" | head -1`
 else
 	echo "ERROR: no source specified"
 	exit
