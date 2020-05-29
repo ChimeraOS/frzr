@@ -69,23 +69,16 @@ if [ ! -z $1 ]; then
 fi
 
 if [ -e "${MOUNT_PATH}/source" ]; then
-	SOURCE_STR=`cat "${MOUNT_PATH}/source" | head -1`
-elif [ -e "${MOUNT_PATH}/channel" ]; then # for compatibility
-	CHANNEL="stable"
-	if grep "test" "${MOUNT_PATH}/channel" > /dev/null; then
-		CHANNEL="testing"
-	fi
-	echo "gamer-os/gamer-os:${CHANNEL}" > "${MOUNT_PATH}/source"
-	SOURCE_STR=`cat "${MOUNT_PATH}/source" | head -1`
+	SOURCE=`cat "${MOUNT_PATH}/source" | head -1`
 else
 	echo "ERROR: no source specified"
 	exit
 fi
 
-SOURCE=$(echo "${SOURCE_STR}" | cut -f 1 -d ':')
-CHANNEL=$(echo "${SOURCE_STR}" | cut -f 2 -d ':')
+REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
+CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
 
-RELEASES_URL="https://api.github.com/repos/${SOURCE}/releases"
+RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
 
 IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
 FILE_NAME=$(basename ${IMG_URL})
