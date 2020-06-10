@@ -93,25 +93,17 @@ if [ -e ${SUBVOL} ]; then
 	exit
 fi
 
+echo "downloading ${NAME}..."
+
+curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+
+CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
+if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
+	echo "checksum does not match; aborting"
+	exit 1
+fi
+
 echo "installing ${NAME}..."
-
-# delete partially downloaded/installed images/subvolumes
-if [ -e ${IMG_FILE} ]; then
-	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
-	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
-		rm -f ${MOUNT_PATH}/*.img.*
-	fi
-fi
-
-if [ ! -e ${IMG_FILE} ]; then
-	curl -L ${IMG_URL} > ${IMG_FILE}
-	
-	CHECKSUM2=`sha256sum ${IMG_FILE} | cut -d' ' -f 1`
-	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
-		echo "checksum does not match; aborting"
-		exit 1
-	fi
-fi
 
 tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
