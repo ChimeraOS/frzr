@@ -46,7 +46,7 @@ if ! mountpoint -q ${MOUNT_PATH}; then
 	sleep 5
 fi
 
-if [ $UEFI ] && ! mountpoint -q ${MOUNT_PATH}/boot; then
+if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep frzr_efi > /dev/null; then
 	mkdir -p ${MOUNT_PATH}/boot
 	mount -L frzr_efi ${MOUNT_PATH}/boot
 	sleep 5

@@ -45,20 +45,17 @@ if [ $UEFI ]; then
 		mkpart primary fat32 1MiB 512MiB \
 		set 1 esp on \
 		mkpart primary 512MiB 100%
-
-	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
-	PART2=$(ls ${DISK}* | grep "${DISK}.*2$")
-	mkfs.btrfs -L frzr_root -f ${PART2}
-	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 else
 	parted --script ${DISK} \
 		mklabel msdos \
-		mkpart primary 1MiB 100%
-
-	PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
-	mkfs.btrfs -L frzr_root -f ${PART1}
-	mount -t btrfs -o nodatacow ${PART1} ${MOUNT_PATH}
+		mkpart primary fat32 1MiB 512MiB \
+		mkpart primary 512MiB 100%
 fi
+
+PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
+PART2=$(ls ${DISK}* | grep "${DISK}.*2$")
+mkfs.btrfs -L frzr_root -f ${PART2}
+mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
@@ -70,13 +67,15 @@ mkdir ${MOUNT_PATH}/boot
 mkdir -p ${MOUNT_PATH}/etc
 mkdir -p ${MOUNT_PATH}/.etc
 
-# install & setup bootloader
-if [ $UEFI ]; then
-	# setup boot partition
-	mkfs.vfat ${PART1}
-	dosfslabel ${PART1} frzr_efi
-	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
 
+# install & setup bootloader
+
+# setup boot partition
+mkfs.vfat ${PART1}
+dosfslabel ${PART1} frzr_efi
+mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
+
+if [ $UEFI ]; then
 	# setup basic syslinux configuration
 	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
 	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux
