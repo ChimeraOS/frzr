@@ -28,7 +28,6 @@ if [ $EUID -ne 0 ]; then
 fi
 
 set -e
-set -x
 
 MOUNT_PATH=/frzr_root
 
@@ -93,9 +92,14 @@ if [ -e ${SUBVOL} ]; then
 	exit
 fi
 
-echo "downloading ${NAME}..."
-
-curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+if [ -z ${SHOW_UI} ]; then
+	echo "downloading ${NAME}..."
+	curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+else
+	curl -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
+	stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | grep --line-buffered -v '100' | \
+	whiptail --gauge "Downloading system image (${NAME})" 10 50 0
+fi
 
 CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
 if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
@@ -103,9 +107,13 @@ if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 	exit 1
 fi
 
-echo "installing ${NAME}..."
+if [ -z ${SHOW_UI} ]; then
+	echo "installing ${NAME}..."
+else
+	whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
+fi
 
-tar xfO ${IMG_FILE} | btrfs receive ${DEPLOY_PATH}
+tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
 cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
 cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
 
