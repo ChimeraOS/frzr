@@ -138,8 +138,6 @@ fi
 
 rm -f ${MOUNT_PATH}/*.img.*
 
-umount -R ${MOUNT_PATH}
-
 rm -rf /var/lib/pacman # undo frzr-unlock
 
 echo "deployment complete; restart to boot into ${NAME}"
@@ -147,3 +145,5 @@ echo "deployment complete; restart to boot into ${NAME}"
 if command -v frzr-postupdate-script > /dev/null; then
 	frzr-postupdate-script
 fi
+
+umount -R ${MOUNT_PATH}
