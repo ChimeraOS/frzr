@@ -6,8 +6,5 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=frzr-deploy
-RemainAfterExit=true
+RemainAfterExit=false
 StandardOutput=journal
-
-[Install]
-WantedBy=multi-user.target

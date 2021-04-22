@@ -1,0 +1,9 @@
+[Unit]
+Description=Trigger frzr updates daily and at boot
+
+[Timer]
+OnBootSec=5min
+OnCalendar=daily
+
+[Install]
+WantedBy=timers.target
