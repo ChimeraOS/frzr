@@ -60,6 +60,7 @@ if frzr-release > /dev/null; then
 	if [ ! -z ${TO_DELETE} ]; then
 		echo "deleting ${TO_DELETE}..."
 		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
+		rm -rf ${MOUNT_PATH}/boot/${TO_DELETE}
 	fi
 fi
 
@@ -114,8 +115,9 @@ else
 fi
 
 tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/
-cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/
+mkdir -p ${MOUNT_PATH}/boot/${NAME}
+cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
+cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
 # check if this is a UEFI system
 if [ $UEFI ]; then
@@ -124,7 +126,7 @@ default ${NAME}
 label ${NAME}
 kernel ../../vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ../../initramfs-linux.img
+initrd ../../${NAME}/initramfs-linux.img
 " > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
 else
 echo "
@@ -132,7 +134,7 @@ default ${NAME}
 label ${NAME}
 kernel ../vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ../initramfs-linux.img
+initrd ../${NAME}/initramfs-linux.img
 " > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 fi
 
