@@ -1,5 +1,8 @@
 #! /bin/bash
 
+set -e
+set -o pipefail
+
 get_img_url() {
     CHANNEL=$1
 
@@ -26,8 +29,6 @@ if [ $EUID -ne 0 ]; then
 	echo "$(basename $0) must be run as root"
 	exit 1
 fi
-
-set -e
 
 MOUNT_PATH=/frzr_root
 
@@ -56,7 +57,7 @@ mkdir -p ${DEPLOY_PATH}
 # delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
 if frzr-release > /dev/null; then
 	CURRENT=`frzr-release`
-	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | head -1`
+	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} || echo | head -1`
 	if [ ! -z ${TO_DELETE} ]; then
 		echo "deleting ${TO_DELETE}..."
 		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
