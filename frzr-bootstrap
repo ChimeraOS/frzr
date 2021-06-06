@@ -51,8 +51,9 @@ else
 		mkpart primary 512MiB 100%
 fi
 
-PART1=$(ls ${DISK}* | grep "${DISK}.*1$")
-PART2=$(ls ${DISK}* | grep "${DISK}.*2$")
+PART1=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
+PART2=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+
 mkfs.btrfs -L frzr_root -f ${PART2}
 mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
 
