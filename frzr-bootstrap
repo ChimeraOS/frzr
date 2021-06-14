@@ -91,3 +91,11 @@ else
 fi
 
 parted ${DISK} set 1 boot on
+
+# Post install steps for system configuration
+# Copy over all network configuration from the live session to the system
+if [ -d "/etc/NetworkManager/system-connections" ]; then
+    mkdir -p -m=700 ${MOUNT_PATH}/etc/NetworkManager/system-connections
+    cp  /etc/NetworkManager/system-connections/* \
+        ${MOUNT_PATH}/etc/NetworkManager/system-connections/.
+fi
