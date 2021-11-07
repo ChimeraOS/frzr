@@ -19,6 +19,8 @@ get_img_url() {
         result=$(echo $result | jq '[ .[] | select(.name|test("UNSTABLE")|not) ]')
     elif [ "$CHANNEL" == "stable" ]; then
         result=$(echo $result | jq '[ .[] | select(.prerelease==false) ]')
+    elif [ "$CHANNEL" != "unstable" ]; then
+        result=$(echo $result | jq "[ .[] | select(.url|contains(\"-${CHANNEL}_\")) ]")
     fi
 
     echo $result | jq 'first | .url' | sed 's/"//g'
@@ -82,6 +84,12 @@ CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
 RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
 
 IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
+
+if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
+	echo "No matching source found"
+	exit
+fi
+
 FILE_NAME=$(basename ${IMG_URL})
 NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 BASE_URL=$(dirname "${IMG_URL}")
