@@ -22,6 +22,7 @@ sed -i -e 's/,ro,/,rw,/' /etc/fstab
 if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
 	mkdir -p /var/lib/pacman
 	cp -r /usr/var/lib/pacman/local /var/lib/pacman/
+	pacman -Sy
 fi
 
 echo "frzr deployment ${DEPLOYMENT} unlocked"
