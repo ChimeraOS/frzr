@@ -56,10 +56,23 @@ fi
 
 mkdir -p ${DEPLOY_PATH}
 
-# delete old deployments unless we are not currently running a frzr deployment (i.e. during install)
+# delete deployments under these conditions:
+# - we are currently running inside a frzr deployment (i.e. not during install)
+# - the deployment is not currently running
+# - the deployment is not configured to be run on next boot
 if frzr-release > /dev/null; then
 	CURRENT=`frzr-release`
-	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} || echo | head -1`
+
+	BOOT_CFG=${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
+	if [ ! -f $BOOT_CFG ]; then
+		BOOT_CFG=${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+	fi
+
+	if [ -f "${BOOT_CFG}" ] && grep "^default" "${BOOT_CFG}" > /dev/null; then
+		TO_BOOT=`grep ^default ${BOOT_CFG} | sed 's/default //'`
+	fi
+
+	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | grep -v ${TO_BOOT} || echo | head -1`
 	if [ ! -z ${TO_DELETE} ]; then
 		echo "deleting ${TO_DELETE}..."
 		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
