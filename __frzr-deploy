@@ -151,6 +151,7 @@ kernel ../../${NAME}/vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../../${NAME}/initramfs-linux.img
 " > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
+cp ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg ${MOUNT_PATH}/boot/EFI/BOOT/syslinux.cfg
 else
 echo "
 default ${NAME}
