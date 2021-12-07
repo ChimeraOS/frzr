@@ -35,6 +35,12 @@ fi
 MOUNT_PATH=/frzr_root
 
 UEFI="-d /sys/firmware/efi/efivars"
+if [ $UEFI ]; then
+	EFI_DIR=${MOUNT_PATH}/boot/EFI/BOOT
+	if [ -d ${MOUNT_PATH}/boot/EFI/syslinux ]; then
+	    EFI_DIR=${MOUNT_PATH}/boot/EFI/syslinux
+	fi
+fi
 
 if ! mountpoint -q ${MOUNT_PATH}; then
 	MOUNT_PATH=/tmp/frzr_root
@@ -63,7 +69,7 @@ mkdir -p ${DEPLOY_PATH}
 if frzr-release > /dev/null; then
 	CURRENT=`frzr-release`
 
-	BOOT_CFG=${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
+	BOOT_CFG=${EFI_DIR}/syslinux.cfg
 	if [ ! -f $BOOT_CFG ]; then
 		BOOT_CFG=${MOUNT_PATH}/boot/syslinux/syslinux.cfg
 	fi
@@ -150,8 +156,7 @@ label ${NAME}
 kernel ../../${NAME}/vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ../../${NAME}/initramfs-linux.img
-" > ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg
-cp ${MOUNT_PATH}/boot/EFI/syslinux/syslinux.cfg ${MOUNT_PATH}/boot/EFI/BOOT/syslinux.cfg
+" > ${EFI_DIR}/syslinux.cfg
 else
 echo "
 default ${NAME}
