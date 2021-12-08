@@ -77,12 +77,8 @@ mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
 
 if [ $UEFI ]; then
 	# setup basic syslinux configuration
-	mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
-	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux
-	efibootmgr --create --disk ${DISK} --part 1 --loader /EFI/syslinux/syslinux.efi --label "frzr"
-
-	# for compatibility with some broken uefi implementations
 	mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
+	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
 	cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
 else
 	mkdir -p ${MOUNT_PATH}/boot/syslinux
