@@ -1,0 +1,54 @@
+[
+  {
+    "tag_name": "1_0000001",
+    "name": "ChimeraOS 1 (0000001) [UNSTABLE]",
+    "prerelease": true,
+    "created_at": "2021-01-01T00:00:00Z",
+    "assets": [
+      {
+        "name": "chimeraos-1_0000001.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-1_0000001.img.tar.xz"
+      }
+    ]
+  },
+  {
+    "tag_name": "1_0000002",
+    "name": "ChimeraOS 1 (0000002)",
+    "prerelease": true,
+    "created_at": "2022-01-01T00:00:00Z",
+    "assets": [
+      {
+        "name": "chimeraos-1_0000002.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-1_0000002.img.tar.xz"
+      }
+    ]
+  },
+  {
+    "tag_name": "1_0000003",
+    "name": "ChimeraOS 1 (0000003)",
+    "prerelease": false,
+    "created_at": "2023-01-01T00:00:00Z",
+    "assets": [
+      {
+        "name": "chimeraos-1_0000003.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-1_0000003.img.tar.xz"
+      }
+    ]
+  },
+  {
+    "tag_name": "1_0000004",
+    "name": "ChimeraOS 1 (0000004)",
+    "prerelease": false,
+    "created_at": "2024-01-01T00:00:00Z",
+    "assets": [
+      {
+        "name": "chimeraos-1_0000004.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-1_0000004.img.tar.xz"
+      }
+    ]
+  }
+]

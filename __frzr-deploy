@@ -26,155 +26,192 @@ get_img_url() {
     echo $result | jq 'first | .url' | sed 's/"//g'
 }
 
+get_syslinux_dir() {
+	local base=${1}
 
-if [ $EUID -ne 0 ]; then
-	echo "$(basename $0) must be run as root"
-	exit 1
-fi
+	# for legacy BIOS installations
+	local result="${base}/boot/syslinux"
 
-MOUNT_PATH=/frzr_root
-
-UEFI="-d /sys/firmware/efi/efivars"
-if [ $UEFI ]; then
-	EFI_DIR=${MOUNT_PATH}/boot/EFI/BOOT
-	if [ -d ${MOUNT_PATH}/boot/EFI/syslinux ]; then
-	    EFI_DIR=${MOUNT_PATH}/boot/EFI/syslinux
-	fi
-fi
-
-if ! mountpoint -q ${MOUNT_PATH}; then
-	MOUNT_PATH=/tmp/frzr_root
-fi
-
-DEPLOY_PATH=${MOUNT_PATH}/deployments
-
-if ! mountpoint -q ${MOUNT_PATH}; then
-	mkdir -p ${MOUNT_PATH}
-	mount -L frzr_root ${MOUNT_PATH}
-	sleep 5
-fi
-
-if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep frzr_efi > /dev/null; then
-	mkdir -p ${MOUNT_PATH}/boot
-	mount -L frzr_efi ${MOUNT_PATH}/boot
-	sleep 5
-fi
-
-mkdir -p ${DEPLOY_PATH}
-
-# delete deployments under these conditions:
-# - we are currently running inside a frzr deployment (i.e. not during install)
-# - the deployment is not currently running
-# - the deployment is not configured to be run on next boot
-if frzr-release > /dev/null; then
-	CURRENT=`frzr-release`
-
-	BOOT_CFG=${EFI_DIR}/syslinux.cfg
-	if [ ! -f $BOOT_CFG ]; then
-		BOOT_CFG=${MOUNT_PATH}/boot/syslinux/syslinux.cfg
+	if [ ! -d ${result} ]; then
+		# for compatibility with older installations
+		result="${base}/boot/EFI/syslinux"
 	fi
 
-	if [ -f "${BOOT_CFG}" ] && grep "^default" "${BOOT_CFG}" > /dev/null; then
-		TO_BOOT=`grep ^default ${BOOT_CFG} | sed 's/default //'`
+	if [ ! -d ${result} ]; then
+		# for new UEFI installations
+		result="${base}/boot/EFI/BOOT"
 	fi
 
-	TO_DELETE=`ls -1 ${DEPLOY_PATH} | grep -v ${CURRENT} | grep -v ${TO_BOOT} || echo | head -1`
-	if [ ! -z ${TO_DELETE} ]; then
-		echo "deleting ${TO_DELETE}..."
-		btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
-		rm -rf ${MOUNT_PATH}/boot/${TO_DELETE}
+	if [ ! -d ${result} ]; then
+		result=""
 	fi
+
+	echo ${result}
+}
+
+get_syslinux_prefix() {
+	local base=${1}
+	local syslinux_dir=${2}
+
+	realpath -m --relative-to=${syslinux_dir} ${base}/boot
+}
+
+get_syslinux_cfg() {
+	local version=${1}
+	local prefix=${2}
+
+echo "default ${version}
+label ${version}
+kernel ${prefix}/${version}/vmlinuz-linux
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
+initrd ${prefix}/${version}/initramfs-linux.img"
+
+}
+
+get_deployment_to_delete() {
+	local current_version=${1}
+	local syslinux_cfg_path=${2}
+	local deployment_path=${3}
+
+	local TO_BOOT='this-is-not-a-valid-version-string'
+	if [ -f "${syslinux_cfg_path}" ] && grep "^default" "${syslinux_cfg_path}" > /dev/null; then
+		TO_BOOT=`grep ^default ${syslinux_cfg_path} | sed 's/default //'`
+	fi
+
+	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
+}
+
+
+main() {
+	if [ $EUID -ne 0 ]; then
+		echo "$(basename $0) must be run as root"
+		exit 1
+	fi
+
+	MOUNT_PATH=/frzr_root
+	
+	if ! mountpoint -q ${MOUNT_PATH}; then
+		MOUNT_PATH=/tmp/frzr_root
+	fi
+	
+	if ! mountpoint -q ${MOUNT_PATH}; then
+		mkdir -p ${MOUNT_PATH}
+		mount -L frzr_root ${MOUNT_PATH}
+		sleep 5
+	fi
+	
+	if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep frzr_efi > /dev/null; then
+		mkdir -p ${MOUNT_PATH}/boot
+		mount -L frzr_efi ${MOUNT_PATH}/boot
+		sleep 5
+	fi
+	
+	DEPLOY_PATH=${MOUNT_PATH}/deployments
+	mkdir -p ${DEPLOY_PATH}
+
+	SYSLINUX_DIR=$(get_syslinux_dir ${MOUNT_PATH})
+
+	if [ -z ${SYSLINUX_DIR} ]; then
+		echo "No syslinux directory could be found"
+		exit 1
+	fi
+
+	PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
+	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
+
+	# delete deployments under these conditions:
+	# - we are currently running inside a frzr deployment (i.e. not during install)
+	# - the deployment is not currently running
+	# - the deployment is not configured to be run on next boot
+	if frzr-release > /dev/null; then
+		CURRENT=`frzr-release`
+		TO_DELETE=`get_deployment_to_delete ${CURRENT} ${BOOT_CFG} ${DEPLOY_PATH}`
+
+		if [ ! -z ${TO_DELETE} ]; then
+			echo "deleting ${TO_DELETE}..."
+			btrfs subvolume delete ${DEPLOY_PATH}/${TO_DELETE} || true
+			rm -rf ${MOUNT_PATH}/boot/${TO_DELETE}
+		fi
+	fi
+	
+	if [ ! -z $1 ]; then
+		echo "$1" > "${MOUNT_PATH}/source"
+	fi
+	
+	if [ -e "${MOUNT_PATH}/source" ]; then
+		SOURCE=`cat "${MOUNT_PATH}/source" | head -1`
+	else
+		echo "ERROR: no source specified"
+		exit
+	fi
+	
+	REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
+	CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
+	
+	RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
+	
+	IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
+	
+	if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
+		echo "No matching source found"
+		exit
+	fi
+	
+	FILE_NAME=$(basename ${IMG_URL})
+	NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+	BASE_URL=$(dirname "${IMG_URL}")
+	CHECKSUM=$(curl -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
+	SUBVOL="${DEPLOY_PATH}/${NAME}"
+	IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
+	
+	if [ -e ${SUBVOL} ]; then
+		echo "${NAME} already installed; aborting"
+		exit
+	fi
+	
+	if [ -z ${SHOW_UI} ]; then
+		echo "downloading ${NAME}..."
+		curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+	else
+		curl -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
+		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | grep --line-buffered -v '100' | \
+		whiptail --gauge "Downloading system image (${NAME})" 10 50 0
+	fi
+	
+	CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
+	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
+		rm -f "${IMG_FILE}"
+		echo "checksum does not match; aborting"
+		exit 1
+	fi
+	
+	if [ -z ${SHOW_UI} ]; then
+		echo "installing ${NAME}..."
+	else
+		whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
+	fi
+	
+	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+	mkdir -p ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+
+	get_syslinux_cfg ${NAME} ${PREFIX} > ${BOOT_CFG}
+	
+	rm -f ${MOUNT_PATH}/*.img.*
+	
+	rm -rf /var/lib/pacman # undo frzr-unlock
+	
+	echo "deployment complete; restart to boot into ${NAME}"
+	
+	if command -v frzr-postupdate-script > /dev/null; then
+		frzr-postupdate-script
+	fi
+	
+	umount -R ${MOUNT_PATH}
+}
+
+
+if [ "$0" = "$BASH_SOURCE" ] ; then
+	main $1
 fi
-
-if [ ! -z $1 ]; then
-	echo "$1" > "${MOUNT_PATH}/source"
-fi
-
-if [ -e "${MOUNT_PATH}/source" ]; then
-	SOURCE=`cat "${MOUNT_PATH}/source" | head -1`
-else
-	echo "ERROR: no source specified"
-	exit
-fi
-
-REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
-CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
-
-RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
-
-IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
-
-if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
-	echo "No matching source found"
-	exit
-fi
-
-FILE_NAME=$(basename ${IMG_URL})
-NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
-BASE_URL=$(dirname "${IMG_URL}")
-CHECKSUM=$(curl -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
-SUBVOL="${DEPLOY_PATH}/${NAME}"
-IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
-
-if [ -e ${SUBVOL} ]; then
-	echo "${NAME} already installed; aborting"
-	exit
-fi
-
-if [ -z ${SHOW_UI} ]; then
-	echo "downloading ${NAME}..."
-	curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
-else
-	curl -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
-	stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | grep --line-buffered -v '100' | \
-	whiptail --gauge "Downloading system image (${NAME})" 10 50 0
-fi
-
-CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
-if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
-	rm -f "${IMG_FILE}"
-	echo "checksum does not match; aborting"
-	exit 1
-fi
-
-if [ -z ${SHOW_UI} ]; then
-	echo "installing ${NAME}..."
-else
-	whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
-fi
-
-tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-mkdir -p ${MOUNT_PATH}/boot/${NAME}
-cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
-cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
-
-# check if this is a UEFI system
-if [ $UEFI ]; then
-echo "
-default ${NAME}
-label ${NAME}
-kernel ../../${NAME}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ../../${NAME}/initramfs-linux.img
-" > ${EFI_DIR}/syslinux.cfg
-else
-echo "
-default ${NAME}
-label ${NAME}
-kernel ../${NAME}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${NAME} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ../${NAME}/initramfs-linux.img
-" > ${MOUNT_PATH}/boot/syslinux/syslinux.cfg
-fi
-
-rm -f ${MOUNT_PATH}/*.img.*
-
-rm -rf /var/lib/pacman # undo frzr-unlock
-
-echo "deployment complete; restart to boot into ${NAME}"
-
-if command -v frzr-postupdate-script > /dev/null; then
-	frzr-postupdate-script
-fi
-
-umount -R ${MOUNT_PATH}
