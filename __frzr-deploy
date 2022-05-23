@@ -154,6 +154,10 @@ main() {
 	
 	if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
 		echo "No matching source found"
+		if curl -L -s "${RELEASES_URL}" | grep "rate limit" > /dev/null; then
+			echo "GitHub API rate limit exceeded"
+			exit 29
+		fi
 		exit 1
 	fi
 	
