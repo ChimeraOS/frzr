@@ -142,7 +142,7 @@ main() {
 		SOURCE=`cat "${MOUNT_PATH}/source" | head -1`
 	else
 		echo "ERROR: no source specified"
-		exit
+		exit 1
 	fi
 	
 	REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
@@ -154,7 +154,7 @@ main() {
 	
 	if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
 		echo "No matching source found"
-		exit
+		exit 1
 	fi
 	
 	FILE_NAME=$(basename ${IMG_URL})
