@@ -7,8 +7,10 @@ fi
 
 
 flock -E 255 -n /tmp/frzr.lock ${BASH_SOURCE%/*}/__frzr-deploy $@
+RESULT=$?
 
-
-if [ $? == 255 ]; then
+if [ $RESULT == 255 ]; then
 	echo "$(basename $0) is already running"
 fi
+
+exit $RESULT
