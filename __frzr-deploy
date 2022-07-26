@@ -63,7 +63,7 @@ get_syslinux_cfg() {
 echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_level=3 mitigations=off nvidia-drm.modeset=1 nowatchdog
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
 initrd ${prefix}/${version}/initramfs-linux.img"
 
 }
