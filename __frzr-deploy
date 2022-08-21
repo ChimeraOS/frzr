@@ -64,7 +64,7 @@ echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ${prefix}/amd-ucode.img,${prefix}/intel-ucode.img,${prefix}/${version}/initramfs-linux.img"
+initrd ${prefix}/${version}/amd-ucode.img,${prefix}/${version}/intel-ucode.img,${prefix}/${version}/initramfs-linux.img"
 
 }
 
@@ -199,6 +199,8 @@ main() {
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
 
 	get_syslinux_cfg ${NAME} ${PREFIX} > ${BOOT_CFG}
 
