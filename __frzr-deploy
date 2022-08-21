@@ -64,7 +64,7 @@ echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ${prefix}/${version}/initramfs-linux.img"
+initrd ${prefix}/amd-ucode.img,${prefix}/intel-ucode.img,${prefix}/${version}/initramfs-linux.img"
 
 }
 
@@ -89,23 +89,23 @@ main() {
 	fi
 
 	MOUNT_PATH=/frzr_root
-	
+
 	if ! mountpoint -q ${MOUNT_PATH}; then
 		MOUNT_PATH=/tmp/frzr_root
 	fi
-	
+
 	if ! mountpoint -q ${MOUNT_PATH}; then
 		mkdir -p ${MOUNT_PATH}
 		mount -L frzr_root ${MOUNT_PATH}
 		sleep 5
 	fi
-	
+
 	if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep frzr_efi > /dev/null; then
 		mkdir -p ${MOUNT_PATH}/boot
 		mount -L frzr_efi ${MOUNT_PATH}/boot
 		sleep 5
 	fi
-	
+
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
 
@@ -133,25 +133,25 @@ main() {
 			rm -rf ${MOUNT_PATH}/boot/${TO_DELETE}
 		fi
 	fi
-	
+
 	if [ ! -z $1 ]; then
 		echo "$1" > "${MOUNT_PATH}/source"
 	fi
-	
+
 	if [ -e "${MOUNT_PATH}/source" ]; then
 		SOURCE=`cat "${MOUNT_PATH}/source" | head -1`
 	else
 		echo "ERROR: no source specified"
 		exit 1
 	fi
-	
+
 	REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
 	CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
-	
+
 	RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
-	
+
 	IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
-	
+
 	if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
 		echo "No matching source found"
 		if curl -L -s "${RELEASES_URL}" | grep "rate limit" > /dev/null; then
@@ -160,19 +160,19 @@ main() {
 		fi
 		exit 1
 	fi
-	
+
 	FILE_NAME=$(basename ${IMG_URL})
 	NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 	BASE_URL=$(dirname "${IMG_URL}")
 	CHECKSUM=$(curl -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
 	SUBVOL="${DEPLOY_PATH}/${NAME}"
 	IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
-	
+
 	if [ -e ${SUBVOL} ]; then
 		echo "${NAME} already installed; aborting"
 		exit
 	fi
-	
+
 	if [ -z ${SHOW_UI} ]; then
 		echo "downloading ${NAME}..."
 		curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
@@ -181,37 +181,37 @@ main() {
 		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | grep --line-buffered -v '100' | \
 		whiptail --gauge "Downloading system image (${NAME})" 10 50 0
 	fi
-	
+
 	CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
 	if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
 		rm -f "${IMG_FILE}"
 		echo "checksum does not match; aborting"
 		exit 1
 	fi
-	
+
 	if [ -z ${SHOW_UI} ]; then
 		echo "installing ${NAME}..."
 	else
 		whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
 	fi
-	
+
 	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
 	get_syslinux_cfg ${NAME} ${PREFIX} > ${BOOT_CFG}
-	
+
 	rm -f ${MOUNT_PATH}/*.img.*
-	
+
 	rm -rf /var/lib/pacman # undo frzr-unlock
-	
+
 	echo "deployment complete; restart to boot into ${NAME}"
-	
+
 	if command -v frzr-postupdate-script > /dev/null; then
 		frzr-postupdate-script
 	fi
-	
+
 	umount -R ${MOUNT_PATH}
 }
 
