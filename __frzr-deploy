@@ -59,12 +59,13 @@ get_syslinux_prefix() {
 get_syslinux_cfg() {
 	local version=${1}
 	local prefix=${2}
+	local additional_initrd=${3}
 
 echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
 append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
-initrd ${prefix}/${version}/amd-ucode.img,${prefix}/${version}/intel-ucode.img,${prefix}/${version}/initramfs-linux.img"
+initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
 
 }
 
@@ -199,10 +200,18 @@ main() {
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
 
-	get_syslinux_cfg ${NAME} ${PREFIX} > ${BOOT_CFG}
+	ADDITIONAL_INITRD=""
+	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
+	fi
+	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
+	fi
+
+	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} > ${BOOT_CFG}
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
