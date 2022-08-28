@@ -74,12 +74,20 @@ get_deployment_to_delete() {
 	local syslinux_cfg_path=${2}
 	local deployment_path=${3}
 
+	local TO_BOOT=`get_next_boot_deployment ${current_version} ${syslinux_cfg_path}`
+	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
+}
+
+get_next_boot_deployment() {
+	local current_version=${1}
+	local syslinux_cfg_path=${2}
+
 	local TO_BOOT='this-is-not-a-valid-version-string'
 	if [ -f "${syslinux_cfg_path}" ] && grep "^default" "${syslinux_cfg_path}" > /dev/null; then
 		TO_BOOT=`grep ^default ${syslinux_cfg_path} | sed 's/default //'`
 	fi
 
-	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
+	echo ${TO_BOOT}
 }
 
 
@@ -119,6 +127,16 @@ main() {
 
 	PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
 	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
+
+	if [ "$1" == "--update-ready" ]; then
+		CURRENT=`frzr-release`
+		NEXT=`get_next_boot_deployment ${CURRENT} ${BOOT_CFG}`
+		if [ ${NEXT} != ${CURRENT} ]; then
+			exit 0
+		fi
+
+		exit 7
+	fi
 
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
