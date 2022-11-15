@@ -169,11 +169,11 @@ main() {
 
 	RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
 
-	IMG_URL=$(curl -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
+	IMG_URL=$(curl --http1.1 -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
 
 	if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
 		echo "No matching source found"
-		if curl -L -s "${RELEASES_URL}" | grep "rate limit" > /dev/null; then
+		if curl --http1.1 -L -s "${RELEASES_URL}" | grep "rate limit" > /dev/null; then
 			echo "GitHub API rate limit exceeded"
 			exit 29
 		fi
@@ -183,7 +183,7 @@ main() {
 	FILE_NAME=$(basename ${IMG_URL})
 	NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 	BASE_URL=$(dirname "${IMG_URL}")
-	CHECKSUM=$(curl -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
+	CHECKSUM=$(curl --http1.1 -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
 	SUBVOL="${DEPLOY_PATH}/${NAME}"
 	IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
 
@@ -194,9 +194,9 @@ main() {
 
 	if [ -z ${SHOW_UI} ]; then
 		echo "downloading ${NAME}..."
-		curl -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+		curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
 	else
-		curl -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
+		curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
 		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | grep --line-buffered -v '100' | \
 		whiptail --gauge "Downloading system image (${NAME})" 10 50 0
 	fi
