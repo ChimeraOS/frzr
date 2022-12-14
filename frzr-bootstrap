@@ -24,66 +24,104 @@ done <<< "$device_output"
 
 DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${device_list[@]}" 3>&1 1>&2 2>&3)
 
-if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
-	echo "installation aborted"
-	exit 1
-fi
+# Checking for existing installation
 
-USERNAME=user
+REPAIR=false
 
-if [ ! -z $1 ]; then
-	USERNAME=$1
-fi
-
-mkdir -p ${MOUNT_PATH}
-
-# create partition table and create and mount the btrfs filesystem
-if [ $UEFI ]; then
-	parted --script ${DISK} \
-		mklabel gpt \
-		mkpart primary fat32 1MiB 512MiB \
-		set 1 esp on \
-		mkpart primary 512MiB 100%
+if (ls -1 /dev/disk/by-label | grep -q frzr_efi); then
+    echo "Installation found"
+    
+    if (whiptail --yesno "WARNING: $DISK appears to have a ChimeraOS installation, would you like to repair the install?" 10 50); then
+	echo "User chose to repair installation"
+	REPAIR=true
+    else
+    	echo "Doing a complete install"
+    fi
+    	
 else
-	parted --script ${DISK} \
-		mklabel msdos \
-		mkpart primary fat32 1MiB 512MiB \
-		mkpart primary 512MiB 100%
+    echo "Installation not found"
 fi
 
-PART1=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
-PART2=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+### Doing a repair install
 
-mkfs.btrfs -L frzr_root -f ${PART2}
-mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
+if ( ${REPAIR} = true ); then
 
-btrfs subvolume create ${MOUNT_PATH}/var
-btrfs subvolume create ${MOUNT_PATH}/home
+	mkdir -p ${MOUNT_PATH}
+	INSTALL_MOUNT=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+	mount ${INSTALL_MOUNT} ${MOUNT_PATH}
 
-mkdir -p ${MOUNT_PATH}/home/${USERNAME}
-chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
-
-mkdir ${MOUNT_PATH}/boot
-mkdir -p ${MOUNT_PATH}/etc
-mkdir -p ${MOUNT_PATH}/.etc
-
-
-# install & setup bootloader
-
-# setup boot partition
-mkfs.vfat ${PART1}
-dosfslabel ${PART1} frzr_efi
-mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
-
-if [ $UEFI ]; then
-	# setup basic syslinux configuration
-	mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
-	cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
-	cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
-else
-	mkdir -p ${MOUNT_PATH}/boot/syslinux
-	extlinux --install ${MOUNT_PATH}/boot
-	dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+	echo "deleting subvolume..."
+	btrfs subvolume delete ${MOUNT_PATH}/deployments/chimeraos* || true
+	rm -rf ${MOUNT_PATH}/boot/chimeraos*
+	rm -rf ${MOUNT_PATH}/etc/*
+	exit 0
 fi
 
-parted ${DISK} set 1 boot on
+### Doing a fresh install
+if ( ${REPAIR} = false ); then
+
+	if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
+		echo "installation aborted"
+		exit 1
+	fi
+
+	USERNAME=user
+
+	if [ ! -z $1 ]; then
+		USERNAME=$1
+	fi
+
+	mkdir -p ${MOUNT_PATH}
+
+	# create partition table and create and mount the btrfs filesystem
+	if [ $UEFI ]; then
+		parted --script ${DISK} \
+			mklabel gpt \
+			mkpart primary fat32 1MiB 512MiB \
+			set 1 esp on \
+			mkpart primary 512MiB 100%
+	else
+		parted --script ${DISK} \
+			mklabel msdos \
+			mkpart primary fat32 1MiB 512MiB \
+			mkpart primary 512MiB 100%
+	fi
+
+	PART1=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
+	PART2=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+
+	mkfs.btrfs -L frzr_root -f ${PART2}
+	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
+
+	btrfs subvolume create ${MOUNT_PATH}/var
+	btrfs subvolume create ${MOUNT_PATH}/home
+
+	mkdir -p ${MOUNT_PATH}/home/${USERNAME}
+	chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
+
+	mkdir ${MOUNT_PATH}/boot
+	mkdir -p ${MOUNT_PATH}/etc
+	mkdir -p ${MOUNT_PATH}/.etc
+
+
+	# install & setup bootloader
+
+	# setup boot partition
+	mkfs.vfat ${PART1}
+	dosfslabel ${PART1} frzr_efi
+	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
+
+	if [ $UEFI ]; then
+		# setup basic syslinux configuration
+		mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
+		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
+		cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
+	else
+		mkdir -p ${MOUNT_PATH}/boot/syslinux
+		extlinux --install ${MOUNT_PATH}/boot
+		dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+	fi
+
+	parted ${DISK} set 1 boot on
+
+fi
