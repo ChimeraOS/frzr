@@ -28,10 +28,10 @@ DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${devi
 
 REPAIR=false
 
-if (ls -1 /dev/disk/by-label | grep -q frzr_efi); then
+if (lsblk -o label ${DISK} | grep -q frzr_efi); then
     echo "Installation found"
     
-    if (whiptail --yesno "WARNING: $DISK appears to have a ChimeraOS installation, would you like to repair the install?" 10 50); then
+    if (whiptail --yesno "WARNING: $DISK appears to have a another system deployed, would you like to repair the install?" 10 50); then
 	echo "User chose to repair installation"
 	REPAIR=true
     else
@@ -51,8 +51,8 @@ if ( ${REPAIR} = true ); then
 	mount ${INSTALL_MOUNT} ${MOUNT_PATH}
 
 	echo "deleting subvolume..."
-	btrfs subvolume delete ${MOUNT_PATH}/deployments/chimeraos* || true
-	rm -rf ${MOUNT_PATH}/boot/chimeraos*
+	btrfs subvolume delete ${MOUNT_PATH}/deployments/* || true
+	rm -rf ${MOUNT_PATH}/boot/*
 	rm -rf ${MOUNT_PATH}/etc/*
 	exit 0
 fi
