@@ -55,10 +55,8 @@ if ( ${REPAIR} = true ); then
 	rm -rf ${MOUNT_PATH}/boot/*
 	rm -rf ${MOUNT_PATH}/etc/*
 	exit 0
-fi
-
-### Doing a fresh install
-if ( ${REPAIR} = false ); then
+else
+	### Doing a fresh install
 
 	if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
 		echo "installation aborted"
