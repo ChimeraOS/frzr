@@ -48,12 +48,27 @@ if ( ${REPAIR} = true ); then
 
 	mkdir -p ${MOUNT_PATH}
 	INSTALL_MOUNT=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+	BOOT_EFI=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
 	mount ${INSTALL_MOUNT} ${MOUNT_PATH}
+	mount -t vfat ${BOOT_EFI} ${MOUNT_PATH}/boot/
+	rm -rf ${MOUNT_PATH}/boot/*
+	
+	if [ $UEFI ]; then
+		# setup basic syslinux configuration
+		mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
+		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
+		cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
+	else
+		mkdir -p ${MOUNT_PATH}/boot/syslinux
+		extlinux --install ${MOUNT_PATH}/boot
+		dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of=${DISK}
+	fi
 
 	echo "deleting subvolume..."
 	btrfs subvolume delete ${MOUNT_PATH}/deployments/* || true
-	rm -rf ${MOUNT_PATH}/boot/*
+	
 	rm -rf ${MOUNT_PATH}/etc/*
+
 	exit 0
 else
 	### Doing a fresh install
