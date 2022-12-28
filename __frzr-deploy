@@ -128,6 +128,26 @@ main() {
 		exit 1
 	fi
 
+	FRZR_CHECK_UPDATE=0
+	FRZR_PARAMS=""
+
+	while (( "$#" )); do
+		case $1 in
+			--update-ready)
+				FRZR_CHECK_UPDATE=1
+				shift
+				;;
+			-*|--*)
+				echo "Unknown argument $1"
+				exit 1
+				;;
+			*) # preserve positional arguments
+				FRZR_PARAMS="$FRZR_PARAMS $1"
+				shift
+				;;
+		esac
+	done
+
 	MOUNT_PATH=/frzr_root
 
 	if ! mountpoint -q ${MOUNT_PATH}; then
@@ -158,7 +178,7 @@ main() {
 
 	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
 
-	if [ "$1" == "--update-ready" ]; then
+	if [ $FRZR_CHECK_UPDATE -eq 1 ]; then
 		CURRENT=`frzr-release`
 		NEXT=`get_next_boot_deployment ${CURRENT} ${BOOT_CFG}`
 		if [ ${NEXT} != ${CURRENT} ]; then
@@ -183,8 +203,8 @@ main() {
 		fi
 	fi
 
-	if [ ! -z $1 ]; then
-		echo "$1" > "${MOUNT_PATH}/source"
+	if [ ! -z $FRZR_PARAMS ]; then
+		echo "$FRZR_PARAMS" > "${MOUNT_PATH}/source"
 	fi
 
 	if [ -e "${MOUNT_PATH}/source" ]; then
@@ -263,5 +283,5 @@ main() {
 
 
 if [ "$0" = "$BASH_SOURCE" ] ; then
-	main $1
+	main "$#"
 fi
