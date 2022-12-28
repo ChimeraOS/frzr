@@ -129,6 +129,7 @@ main() {
 	fi
 
 	FRZR_CHECK_UPDATE=0
+	FRZR_UPDATE_BOOTLOADER=0
 	FRZR_SOURCE=""
 	FRZR_PARAMS=""
 
@@ -136,6 +137,10 @@ main() {
 		case $1 in
 			--update-ready)
 				FRZR_CHECK_UPDATE=1
+				shift
+				;;
+			--update-bootloader)
+				FRZR_UPDATE_BOOTLOADER=1
 				shift
 				;;
 			-*|--*)
@@ -190,6 +195,13 @@ main() {
 		fi
 
 		exit 7
+	fi
+
+	if [ $FRZR_UPDATE_BOOTLOADER -eq 1 ]; then
+		NAME=`frzr-release`
+		SUBVOL="${DEPLOY_PATH}/${NAME}"
+		update_kernel_bootloader ${SUBVOL} ${MOUNT_PATH} ${NAME}
+		exit 0
 	fi
 
 	# delete deployments under these conditions:
