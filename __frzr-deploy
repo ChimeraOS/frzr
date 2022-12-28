@@ -90,6 +90,37 @@ get_next_boot_deployment() {
 	echo ${TO_BOOT}
 }
 
+update_kernel_bootloader() {
+	local subvol=$1
+	local mount_path=$2
+	local name=$3
+
+	local syslinux_dir=$(get_syslinux_dir ${mount_path})
+
+	if [ -z ${syslinux_dir} ]; then
+		echo "No syslinux directory could be found"
+		exit 1
+	fi
+
+	local prefix=$(get_syslinux_prefix ${mount_path} ${syslinux_dir})
+	local boot_cfg="${syslinux_dir}/syslinux.cfg"
+
+	mkdir -p ${mount_path}/boot/${name}
+	cp ${subvol}/boot/vmlinuz-linux ${mount_path}/boot/${name}
+	cp ${subvol}/boot/initramfs-linux.img ${mount_path}/boot/${name}
+
+	additional_initrd=""
+	if [ -e ${subvol}/boot/amd-ucode.img ] ; then
+		cp ${subvol}/boot/amd-ucode.img ${mount_path}/boot/${name}
+		additional_initrd="${additional_initrd}${prefix}/${name}/amd-ucode.img,"
+	fi
+	if [ -e ${subvol}/boot/intel-ucode.img ] ; then
+		cp ${subvol}/boot/intel-ucode.img ${mount_path}/boot/${name}
+		additional_initrd="${additional_initrd}${prefix}/${name}/intel-ucode.img,"
+	fi
+
+	get_syslinux_cfg ${name} ${prefix} ${additional_initrd} > ${boot_cfg}
+}
 
 main() {
 	if [ $EUID -ne 0 ]; then
@@ -125,7 +156,6 @@ main() {
 		exit 1
 	fi
 
-	PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
 	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
 
 	if [ "$1" == "--update-ready" ]; then
@@ -215,21 +245,8 @@ main() {
 	fi
 
 	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-	mkdir -p ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
-	ADDITIONAL_INITRD=""
-	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
-	fi
-	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
-	fi
-
-	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} > ${BOOT_CFG}
+	update_kernel_bootloader ${SUBVOL} ${MOUNT_PATH} ${NAME}
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
