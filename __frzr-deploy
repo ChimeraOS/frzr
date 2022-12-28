@@ -64,7 +64,7 @@ get_syslinux_cfg() {
 echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ibt=off
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ibt=off split_lock_detect=off
 initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
 
 }
