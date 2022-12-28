@@ -129,6 +129,7 @@ main() {
 	fi
 
 	FRZR_CHECK_UPDATE=0
+	FRZR_SOURCE=""
 	FRZR_PARAMS=""
 
 	while (( "$#" )); do
@@ -147,6 +148,9 @@ main() {
 				;;
 		esac
 	done
+
+	# keep only the first param as source
+	FRZR_SOURCE="${FRZR_PARAMS%% *}"
 
 	MOUNT_PATH=/frzr_root
 
@@ -203,8 +207,8 @@ main() {
 		fi
 	fi
 
-	if [ ! -z $FRZR_PARAMS ]; then
-		echo "$FRZR_PARAMS" > "${MOUNT_PATH}/source"
+	if [ ! -z $FRZR_SOURCE ]; then
+		echo "$FRZR_SOURCE" > "${MOUNT_PATH}/source"
 	fi
 
 	if [ -e "${MOUNT_PATH}/source" ]; then
