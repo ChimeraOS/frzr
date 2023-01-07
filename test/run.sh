@@ -90,7 +90,7 @@ check 'should return expected syslinux config' "$(get_syslinux_cfg '12_abcdef' '
 'default 12_abcdef
 label 12_abcdef
 kernel ../../12_abcdef/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/12_abcdef quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/12_abcdef quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ibt=off split_lock_detect=off
 initrd ../../12_abcdef/initramfs-linux.img'
 
 
