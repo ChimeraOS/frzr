@@ -111,6 +111,35 @@ main() {
 		exit 1
 	fi
 
+	FRZR_CHECK_UPDATE=0
+	FRZR_STEAM_PROGRESS=0
+	FRZR_SOURCE=""
+	FRZR_PARAMS=""
+
+	while (( "$#" )); do
+		case $1 in
+			--check)
+				FRZR_CHECK_UPDATE=1
+				shift
+				;;
+			--steam-progress)
+				FRZR_STEAM_PROGRESS=1
+				shift
+				;;
+			-*|--*)
+				echo "Unknown argument $1"
+				exit 1
+				;;
+			*) # preserve positional arguments
+				FRZR_PARAMS="$FRZR_PARAMS $1"
+				shift
+				;;
+		esac
+	done
+
+	# keep only the first param as source
+	FRZR_SOURCE="${FRZR_PARAMS%% *}"
+
 	MOUNT_PATH=/frzr_root
 
 	if ! mountpoint -q ${MOUNT_PATH}; then
@@ -157,8 +186,8 @@ main() {
 		fi
 	fi
 
-	if [ ! -z $1 ] && [ "$1" != "--check" ] && [ "$1" != "--steam-progress" ]; then
-		echo "$1" > "${MOUNT_PATH}/source"
+	if [ ! -z $FRZR_SOURCE ] && [ $FRZR_CHECK_UPDATE -eq 0 ] && [ $FRZR_STEAM_PROGRESS -eq 0 ]; then
+		echo "$FRZR_SOURCE" > "${MOUNT_PATH}/source"
 	fi
 
 	if [ -e "${MOUNT_PATH}/source" ]; then
@@ -196,12 +225,12 @@ main() {
 		exit 7 # let Steam know there is no update available
 	fi
 
-	if [ "$1" == "--check" ]; then
+	if [ $FRZR_CHECK_UPDATE -eq 1 ]; then
 		echo "Update available: ${NAME}"
 		exit 0 # let Steam know there is an update available
 	fi
 
-	if [ "$1" == "--steam-progress" ]; then
+	if [ $FRZR_STEAM_PROGRESS -eq 1 ]; then
 		curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
 		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 91 %
 	elif [ -z ${SHOW_UI} ]; then
@@ -263,5 +292,5 @@ main() {
 
 
 if [ "$0" = "$BASH_SOURCE" ] ; then
-	main $1
+	main "$#"
 fi
