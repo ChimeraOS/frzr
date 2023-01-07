@@ -60,11 +60,12 @@ get_syslinux_cfg() {
 	local version=${1}
 	local prefix=${2}
 	local additional_initrd=${3}
+	local additional_arguments=${4}
 
 echo "default ${version}
 label ${version}
 kernel ${prefix}/${version}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ibt=off split_lock_detect=off
+append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}
 initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
 
 }
@@ -240,7 +241,12 @@ main() {
 		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
 	fi
 
-	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} > ${BOOT_CFG}
+	ADDITIONAL_ARGUMENTS=""
+	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
+		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
+	fi
+
+	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
