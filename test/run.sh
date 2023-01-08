@@ -86,7 +86,7 @@ check 'should return correct prefix for new UEFI installations'     $(get_syslin
 
 echo
 echo '== get_syslinux_cfg'
-check 'should return expected syslinux config' "$(get_syslinux_cfg '12_abcdef' '../..')" \
+check 'should return expected syslinux config' "$(get_syslinux_cfg '12_abcdef' '../..' '' 'ibt=off split_lock_detect=off')" \
 'default 12_abcdef
 label 12_abcdef
 kernel ../../12_abcdef/vmlinuz-linux
