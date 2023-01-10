@@ -196,10 +196,10 @@ main() {
 		echo "WARNING: source wasn't specified"
 	fi
 	
-	if [  ${local_install} == true ]; then
+	if [  ${local_install} ]; then
 
-	  mkdir tmp_source
-	  mount -o rw -L CHIMERA_UPDATE /root/tmp_source
+	        mkdir tmp_source
+	        mount -o rw -L CHIMERA_UPDATE /root/tmp_source
 		FILE_NAME=$(basename /root/tmp_source/*.img.tar.xz*)	
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
@@ -227,74 +227,75 @@ main() {
 		CHECKSUM=$(curl --http1.1 -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
-    
-	if [ -e ${SUBVOL} ]; then
-		echo "${NAME} already installed; aborting"
-		exit 7 # let Steam know there is no update available
-	fi
+		
+	        if [ -e ${SUBVOL} ]; then
+		        echo "${NAME} already installed; aborting"
+		        exit 7 # let Steam know there is no update available
+	        fi
 
-	if [ $FRZR_CHECK_UPDATE -eq 1 ]; then
-		echo "Update available: ${NAME}"
-		exit 0 # let Steam know there is an update available
-	fi
+	        if [ $FRZR_CHECK_UPDATE -eq 1 ]; then
+		        echo "Update available: ${NAME}"
+		        exit 0 # let Steam know there is an update available
+	        fi
 
-	if [ $FRZR_STEAM_PROGRESS -eq 1 ]; then
-		curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
-		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 91 %
-	elif [ -z ${SHOW_UI} ]; then
-		echo "downloading ${NAME}..."
-		curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
-	else
-		curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
-		stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 100 | \
-		whiptail --gauge "Downloading system image (${NAME})" 10 50 0
-	fi
+	        if [ $FRZR_STEAM_PROGRESS -eq 1 ]; then
+		        curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
+		        stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 91 %
+	        elif [ -z ${SHOW_UI} ]; then
+		        echo "downloading ${NAME}..."
+		        curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+	        else
+		        curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
+		        stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 100 | \
+		        whiptail --gauge "Downloading system image (${NAME})" 10 50 0
+	        fi
 
-		CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
-		if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
-			rm -f "${IMG_FILE}"
-			echo "checksum does not match; aborting"
-			exit 1
-		fi
-	fi
-	
+		        CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
+		        if [ "$CHECKSUM" != "$CHECKSUM2" ]; then
+			        rm -f "${IMG_FILE}"
+			        echo "checksum does not match; aborting"
+			        exit 1
+		        fi
+		        
+        fi
+        
 	if [ -z ${SHOW_UI} ]; then
-		echo "installing ${NAME}..."
-	else
-		whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
-	fi
+	        echo "installing ${NAME}..."
+        else
+	        whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
+        fi
+        
+        tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+        mkdir -p ${MOUNT_PATH}/boot/${NAME}
+        cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
+        cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
-	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-	mkdir -p ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+        ADDITIONAL_INITRD=""
+        if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+	        cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+	        ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
+        fi
+        if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+	        cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+	        ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
+        fi
 
-	ADDITIONAL_INITRD=""
-	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
-	fi
-	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
-	fi
+        ADDITIONAL_ARGUMENTS=""
+        if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
+	        ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
+        fi
 
-	ADDITIONAL_ARGUMENTS=""
-	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
-		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
-	fi
+        get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
 
-	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
+        rm -f ${MOUNT_PATH}/*.img.*
 
-	rm -f ${MOUNT_PATH}/*.img.*
+        rm -rf /var/lib/pacman # undo frzr-unlock
 
-	rm -rf /var/lib/pacman # undo frzr-unlock
+        echo "deployment complete; restart to boot into ${NAME}"
 
-	echo "deployment complete; restart to boot into ${NAME}"
-
-	if command -v frzr-postupdate-script > /dev/null; then
-		frzr-postupdate-script
-	fi
+        if command -v frzr-postupdate-script > /dev/null; then
+	        frzr-postupdate-script
+        fi
 
 	umount -R ${MOUNT_PATH}
 }
