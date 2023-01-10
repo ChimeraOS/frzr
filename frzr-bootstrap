@@ -70,7 +70,7 @@ if ( ${REPAIR} = true ); then
 	rm -rf ${MOUNT_PATH}/etc/*
 
 	exit 0
-else
+fi
 	### Doing a fresh install
 
 	if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
@@ -137,4 +137,3 @@ else
 
 	parted ${DISK} set 1 boot on
 
-fi
