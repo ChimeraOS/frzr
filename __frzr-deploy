@@ -131,7 +131,7 @@ main() {
 				exit 1
 				;;
 			*) # preserve positional arguments
-				FRZR_PARAMS="$FRZR_PARAMS $1"
+				FRZR_PARAMS="${FRZR_PARAMS}$1 " # Use trailing space for the match below
 				shift
 				;;
 		esac
@@ -292,5 +292,5 @@ main() {
 
 
 if [ "$0" = "$BASH_SOURCE" ] ; then
-	main "$#"
+	main "$@"
 fi
