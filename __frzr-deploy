@@ -258,44 +258,44 @@ main() {
 		        fi
 		        
         fi
-        
+
 	if [ -z ${SHOW_UI} ]; then
 	        echo "installing ${NAME}..."
-        else
+	else
 	        whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
-        fi
-        
-        tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-        mkdir -p ${MOUNT_PATH}/boot/${NAME}
-        cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
-        cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+	fi
 
-        ADDITIONAL_INITRD=""
-        if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+	mkdir -p ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+
+	ADDITIONAL_INITRD=""
+	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
 	        cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
 	        ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
-        fi
-        if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+	fi
+	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
 	        cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
 	        ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
-        fi
+	fi
 
-        ADDITIONAL_ARGUMENTS=""
-        if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
+	ADDITIONAL_ARGUMENTS=""
+	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 	        ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
-        fi
+	fi
 
-        get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
+	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
 
-        rm -f ${MOUNT_PATH}/*.img.*
+	rm -f ${MOUNT_PATH}/*.img.*
 
-        rm -rf /var/lib/pacman # undo frzr-unlock
+	rm -rf /var/lib/pacman # undo frzr-unlock
 
-        echo "deployment complete; restart to boot into ${NAME}"
+	echo "deployment complete; restart to boot into ${NAME}"
 
-        if command -v frzr-postupdate-script > /dev/null; then
+	if command -v frzr-postupdate-script > /dev/null; then
 	        frzr-postupdate-script
-        fi
+	fi
 
 	umount -R ${MOUNT_PATH}
 }
