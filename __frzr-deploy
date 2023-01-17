@@ -196,7 +196,7 @@ main() {
 		echo "WARNING: source wasn't specified"
 	fi
 	
-	if [  ${local_install} ]; then
+	if [ "${local_install}" == true ]; then
 	        mkdir tmp_source
 	        mount -o rw -L CHIMERA_UPDATE /root/tmp_source
 		FILE_NAME=$(basename /root/tmp_source/*.img.tar.xz*)	

@@ -44,7 +44,7 @@ fi
 
 ### Doing a repair install
 
-if [ $REPAIR ]; then
+if [ "${REPAIR}" == true ]; then
 
 	mkdir -p ${MOUNT_PATH}
 	INSTALL_MOUNT=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
