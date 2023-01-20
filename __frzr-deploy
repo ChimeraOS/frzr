@@ -283,7 +283,7 @@ main() {
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 
-	get_syslinux_cfg ${NAME} ${PREFIX} ${ADDITIONAL_INITRD} ${ADDITIONAL_ARGUMENTS} > ${BOOT_CFG}
+	get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
