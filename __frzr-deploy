@@ -186,7 +186,7 @@ main() {
 		fi
 	fi
 
-	if [ ! -z $FRZR_SOURCE ] && [ $FRZR_CHECK_UPDATE -eq 0 ] && [ $FRZR_STEAM_PROGRESS -eq 0 ]; then
+	if [ ! -z "$FRZR_SOURCE" -a "$FRZR_SOURCE" != " " ] && [ $FRZR_CHECK_UPDATE -eq 0 ] && [ $FRZR_STEAM_PROGRESS -eq 0 ]; then
 		echo "$FRZR_SOURCE" > "${MOUNT_PATH}/source"
 	fi
 
