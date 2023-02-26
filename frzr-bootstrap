@@ -127,6 +127,7 @@ fi
 	if [ $UEFI ]; then
 		# setup basic syslinux configuration
 		mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
+		mkdir -p ${MOUNT_PATH}/boot/EFI/syslinux
 		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
 		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/syslinux/
 		cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
