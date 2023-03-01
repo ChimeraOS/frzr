@@ -298,7 +298,7 @@ main() {
 			echo "Applying migration $(basename $m)"
 			unset -f post_install
 			. $m
-			post_install "${SUBVOL}"
+			post_install "${MOUNT_PATH}" "${SUBVOL}"
 			unset -f post_install
 		done
 	fi
