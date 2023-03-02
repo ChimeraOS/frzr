@@ -74,7 +74,8 @@ get_systemd_cfg() {
 echo "title ${version}
 linux /${version}/vmlinuz-linux
 initrd /${version}/initramfs-linux.img
-initrd ${additional_initrd}
+initrd /${version}/amd-ucode.img
+initrd /${version}/intel-ucode.img
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
