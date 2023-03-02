@@ -68,14 +68,13 @@ initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
 
 get_systemd_cfg() {
 	local version=${1}
-	local additional_initrd=${3}
-	local additional_arguments=${4}
+	local additional_initrd=${2}
+	local additional_arguments=${3}
 	
-echo "
-title ${version}
+echo "title ${version}
 linux /${version}/vmlinuz-linux
 initrd /${version}/initramfs-linux.img
-initrd /${version}/amd-ucode.img
+initrd ${additional_initrd}
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
@@ -285,25 +284,34 @@ main() {
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
-	ADDITIONAL_INITRD=""
-	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
-	fi
-	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
-	fi
-
 	ADDITIONAL_ARGUMENTS=""
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 	
+	ADDITIONAL_INITRD=""
 	if [ -d /sys/firmware/efi/efivars ]; then
+		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${NAME}/amd-ucode.img,"
+		fi
+		
+		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${NAME}/intel-ucode.img,"
+		fi
 		get_systemd_cfg "${NAME}" "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
 		echo "default chimeraos-entry.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 	else
+		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
+		fi
+		
+		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
+		fi
 		get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
 	fi
 
