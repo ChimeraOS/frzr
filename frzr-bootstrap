@@ -56,8 +56,7 @@ if [ "${REPAIR}" == true ]; then
 	if [ $UEFI ]; then
 		# setup basic syslinux configuration
 		mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
-		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
-		cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
+		bootctl --esp-path=${MOUNT_PATH}/boot/ install
 	else
 		mkdir -p ${MOUNT_PATH}/boot/syslinux
 		extlinux --install ${MOUNT_PATH}/boot
@@ -127,8 +126,7 @@ fi
 	if [ $UEFI ]; then
 		# setup basic syslinux configuration
 		mkdir -p ${MOUNT_PATH}/boot/EFI/BOOT
-		cp -r /usr/lib/syslinux/efi64/* ${MOUNT_PATH}/boot/EFI/BOOT/
-		cp /usr/lib/syslinux/efi64/syslinux.efi ${MOUNT_PATH}/boot/EFI/BOOT/bootx64.efi
+		bootctl --esp-path=${MOUNT_PATH}/boot/ install
 	else
 		mkdir -p ${MOUNT_PATH}/boot/syslinux
 		extlinux --install ${MOUNT_PATH}/boot

@@ -38,16 +38,12 @@ get_syslinux_dir() {
 	fi
 
 	if [ ! -d ${result} ]; then
-		# for new UEFI installations
-		result="${base}/boot/EFI/BOOT"
-	fi
-
-	if [ ! -d ${result} ]; then
 		result=""
 	fi
 
 	echo ${result}
 }
+
 
 get_syslinux_prefix() {
 	local base=${1}
@@ -70,23 +66,40 @@ initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
 
 }
 
+get_systemd_cfg() {
+	local version=${1}
+	local additional_initrd=${3}
+	local additional_arguments=${4}
+	
+echo "
+title ${version}
+linux /${version}/vmlinuz-linux
+initrd /${version}/initramfs-linux.img
+initrd /${version}/amd-ucode.img
+options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
+
+}
+
 get_deployment_to_delete() {
 	local current_version=${1}
-	local syslinux_cfg_path=${2}
+	local boot_cfg_path=${2}
 	local deployment_path=${3}
 
-	local TO_BOOT=`get_next_boot_deployment ${current_version} ${syslinux_cfg_path}`
+	local TO_BOOT=`get_next_boot_deployment ${current_version} ${boot_cfg_path}`
+		
 	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
 }
 
 get_next_boot_deployment() {
 	local current_version=${1}
-	local syslinux_cfg_path=${2}
+	local boot_cfg_path=${2}
 
 	local TO_BOOT='this-is-not-a-valid-version-string'
-	if [ -f "${syslinux_cfg_path}" ] && grep "^default" "${syslinux_cfg_path}" > /dev/null; then
-		TO_BOOT=`grep ^default ${syslinux_cfg_path} | sed 's/default //'`
-	fi
+	if [ -f "${boot_cfg_path}" ] && grep "^title" "${boot_cfg_path}" > /dev/null; then
+		TO_BOOT=`grep ^title ${boot_cfg_path} | sed 's/title //'`
+	elif [ -f "${boot_cfg_path}" ] && grep "^default" "${boot_cfg_path}" > /dev/null; then
+		TO_BOOT=`grep ^default ${boot_cfg_path} | sed 's/default //'`
+        fi
 
 	echo ${TO_BOOT}
 }
@@ -160,17 +173,21 @@ main() {
 
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
+	
+	if [ -d /sys/firmware/efi/efivars ]; then
+		echo "UEFI boot detected, installing systemd-boot"
+		BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/chimeraos-entry.conf"
+	else
+		echo "Legacy bios detected, installing syslinux"
+		SYSLINUX_DIR=$(get_syslinux_dir ${MOUNT_PATH})
 
-	SYSLINUX_DIR=$(get_syslinux_dir ${MOUNT_PATH})
-
-	if [ -z ${SYSLINUX_DIR} ]; then
-		echo "No syslinux directory could be found"
-		exit 1
+		if [ -z ${SYSLINUX_DIR} ]; then
+			echo "No syslinux directory could be found"
+			exit 1
+		fi
+		PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
+		BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
 	fi
-
-	PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
-	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
-
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
 	# - the deployment is not currently running
@@ -282,8 +299,13 @@ main() {
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
-
-	get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	
+	if [ -d /sys/firmware/efi/efivars ]; then
+		get_systemd_cfg "${NAME}" "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+		echo "default chimeraos-entry.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
+	else
+		get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	fi
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
