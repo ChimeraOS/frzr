@@ -291,8 +291,16 @@ main() {
 
 	echo "deployment complete; restart to boot into ${NAME}"
 
-	if command -v frzr-postupdate-script > /dev/null; then
-		frzr-postupdate-script
+	# Check if there are migrations available
+	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
+		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
+		do
+			echo "Applying migration $(basename $m)"
+			unset -f post_install
+			. $m
+			post_install "${MOUNT_PATH}" "${SUBVOL}"
+			unset -f post_install
+		done
 	fi
 
 	umount -R ${MOUNT_PATH}
