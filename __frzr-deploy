@@ -295,10 +295,12 @@ main() {
 	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
 		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
 		do
-			echo "Applying migration $(basename $m)"
 			unset -f post_install
 			. $m
-			post_install "${MOUNT_PATH}" "${SUBVOL}"
+			if [ "$(type -t foo)" == function ] ; then
+			  echo "Applying post install migration $(basename $m)"
+        post_install "${MOUNT_PATH}" "${SUBVOL}"
+      fi
 			unset -f post_install
 		done
 	fi
