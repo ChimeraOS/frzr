@@ -284,13 +284,28 @@ main() {
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
-
+	
+	# Check if there are migrations available
+	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
+		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
+		do
+			echo "Applying migration $(basename $m)"
+			unset -f post_install
+			. $m
+			post_install "${MOUNT_PATH}" "${SUBVOL}"
+			unset -f post_install
+		done
+	fi
+	
+	#Load in additional boot parameters from the system image itself
 	ADDITIONAL_ARGUMENTS=""
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 	
+	#Load in additional initrd parameters from the image itself as well as keep the amd/intel ucode up-to-date
 	ADDITIONAL_INITRD=""
+	# UEFI/Systemd and Syslinux have different paths
 	if [ -d /sys/firmware/efi/efivars ]; then
 		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
 		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
@@ -321,18 +336,6 @@ main() {
 	rm -rf /var/lib/pacman # undo frzr-unlock
 
 	echo "deployment complete; restart to boot into ${NAME}"
-
-	# Check if there are migrations available
-	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
-		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
-		do
-			echo "Applying migration $(basename $m)"
-			unset -f post_install
-			. $m
-			post_install "${MOUNT_PATH}" "${SUBVOL}"
-			unset -f post_install
-		done
-	fi
 
 	umount -R ${MOUNT_PATH}
 }
