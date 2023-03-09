@@ -26,7 +26,7 @@ get_img_url() {
     echo $result | jq 'first | .url' | sed 's/"//g'
 }
 
-get_systemd_cfg() {
+get_boot_cfg() {
 	local version=${1}
 	local amd_ucode=${2}
 	local intel_ucode=${3}
@@ -256,7 +256,7 @@ main() {
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 
-	get_systemd_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDTIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDTIONAL_ARGUMENTS}" > ${BOOT_CFG}
 	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
