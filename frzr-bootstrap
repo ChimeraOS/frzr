@@ -40,7 +40,9 @@ else
     echo "Installation not found"
 fi
 
-### Doing a repair install
+
+
+########## Doing a repair install
 
 if [ "${REPAIR}" == true ]; then
 
@@ -59,49 +61,51 @@ if [ "${REPAIR}" == true ]; then
 
 	exit 0
 fi
-	### Doing a fresh install
-
-	if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
-		echo "installation aborted"
-		exit 1
-	fi
-
-	USERNAME=user
-
-	if [ ! -z $1 ]; then
-		USERNAME=$1
-	fi
-
-	mkdir -p ${MOUNT_PATH}
-
-	# create partition table and create and mount the btrfs filesystem
-	parted --script ${DISK} \
-		mklabel gpt \
-		mkpart primary fat32 1MiB 512MiB \
-		set 1 esp on \
-		mkpart primary 512MiB 100%
-
-	PART1=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
-	PART2=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
-
-	mkfs.btrfs -L frzr_root -f ${PART2}
-	mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
-
-	btrfs subvolume create ${MOUNT_PATH}/var
-	btrfs subvolume create ${MOUNT_PATH}/home
-
-	mkdir -p ${MOUNT_PATH}/home/${USERNAME}
-	chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
-
-	mkdir ${MOUNT_PATH}/boot
-	mkdir -p ${MOUNT_PATH}/etc
-	mkdir -p ${MOUNT_PATH}/.etc
 
 
-	# setup boot partition & install bootloader
-	mkfs.vfat ${PART1}
-	dosfslabel ${PART1} frzr_efi
-	mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
-	bootctl --esp-path=${MOUNT_PATH}/boot/ install
-	parted ${DISK} set 1 boot on
 
+########## Doing a fresh install
+
+if ! (whiptail --yesno "WARNING: $DISK will now be formatted. All data on the disk will be lost. Do you wish to proceed?" 10 50); then
+	echo "installation aborted"
+	exit 1
+fi
+
+USERNAME=user
+
+if [ ! -z $1 ]; then
+	USERNAME=$1
+fi
+
+mkdir -p ${MOUNT_PATH}
+
+# create partition table and create and mount the btrfs filesystem
+parted --script ${DISK} \
+	mklabel gpt \
+	mkpart primary fat32 1MiB 512MiB \
+	set 1 esp on \
+	mkpart primary 512MiB 100%
+
+PART1=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*1$")
+PART2=$(fdisk -o Device --list ${DISK} | grep "^${DISK}.*2$")
+
+mkfs.btrfs -L frzr_root -f ${PART2}
+mount -t btrfs -o nodatacow ${PART2} ${MOUNT_PATH}
+
+btrfs subvolume create ${MOUNT_PATH}/var
+btrfs subvolume create ${MOUNT_PATH}/home
+
+mkdir -p ${MOUNT_PATH}/home/${USERNAME}
+chown 1000:1000 ${MOUNT_PATH}/home/${USERNAME}
+
+mkdir ${MOUNT_PATH}/boot
+mkdir -p ${MOUNT_PATH}/etc
+mkdir -p ${MOUNT_PATH}/.etc
+
+
+# setup boot partition & install bootloader
+mkfs.vfat ${PART1}
+dosfslabel ${PART1} frzr_efi
+mount -t vfat ${PART1} ${MOUNT_PATH}/boot/
+bootctl --esp-path=${MOUNT_PATH}/boot/ install
+parted ${DISK} set 1 boot on
