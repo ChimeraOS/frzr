@@ -26,56 +26,17 @@ get_img_url() {
     echo $result | jq 'first | .url' | sed 's/"//g'
 }
 
-get_syslinux_dir() {
-	local base=${1}
-
-	# for legacy BIOS installations
-	local result="${base}/boot/syslinux"
-
-	if [ ! -d ${result} ]; then
-		# for compatibility with older installations
-		result="${base}/boot/EFI/syslinux"
-	fi
-
-	if [ ! -d ${result} ]; then
-		result=""
-	fi
-
-	echo ${result}
-}
-
-
-get_syslinux_prefix() {
-	local base=${1}
-	local syslinux_dir=${2}
-
-	realpath -m --relative-to=${syslinux_dir} ${base}/boot
-}
-
-get_syslinux_cfg() {
-	local version=${1}
-	local prefix=${2}
-	local additional_initrd=${3}
-	local additional_arguments=${4}
-
-echo "default ${version}
-label ${version}
-kernel ${prefix}/${version}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}
-initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
-
-}
-
 get_systemd_cfg() {
 	local version=${1}
-	local additional_initrd=${2}
-	local additional_arguments=${3}
+	local amd_ucode=${2}
+	local intel_ucode=${3}
+	local additional_arguments=${4}
 	
 echo "title ${version}
 linux /${version}/vmlinuz-linux
 initrd /${version}/initramfs-linux.img
-initrd /${version}/amd-ucode.img
-initrd /${version}/intel-ucode.img
+${amd_ucode}
+${intel_ucode}
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
@@ -149,6 +110,11 @@ main() {
 				;;
 		esac
 	done
+	
+	if [ ! -d /sys/firmware/efi/efivars ]; then
+		echo "Legacy BIOS installs are not supported. Aborting."
+		exit 1
+	fi
 
 	# keep only the first param as source
 	FRZR_SOURCE="${FRZR_PARAMS%% *}"
@@ -174,20 +140,8 @@ main() {
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
 	
-	if [ -d /sys/firmware/efi/efivars ]; then
-		echo "UEFI boot detected, installing systemd-boot"
-		BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/chimeraos-entry.conf"
-	else
-		echo "Legacy bios detected, installing syslinux"
-		SYSLINUX_DIR=$(get_syslinux_dir ${MOUNT_PATH})
+	BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
 
-		if [ -z ${SYSLINUX_DIR} ]; then
-			echo "No syslinux directory could be found"
-			exit 1
-		fi
-		PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
-		BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
-	fi
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
 	# - the deployment is not currently running
@@ -284,56 +238,45 @@ main() {
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
-	
-	# Check if there are migrations available
-	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
-		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
-		do
-			echo "Applying migration $(basename $m)"
-			unset -f post_install
-			. $m
-			post_install "${MOUNT_PATH}" "${SUBVOL}"
-			unset -f post_install
-		done
+
+	AMD_UCODE=""
+	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		AMD_UCODE="initrd /${NAME}/amd-ucode.img"
 	fi
-	
-	#Load in additional boot parameters from the system image itself
+
+	INTEL_UCODE=""
+	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+		INTEL_UCODE="initrd /${NAME}/intel-ucode.img"
+	fi
+
 	ADDITIONAL_ARGUMENTS=""
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
-	
-	#Load in additional initrd parameters from the image itself as well as keep the amd/intel ucode up-to-date
-	ADDITIONAL_INITRD=""
-	# UEFI/Systemd and Syslinux have different paths
-	if [ -d /sys/firmware/efi/efivars ]; then
-		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${NAME}/amd-ucode.img,"
-		fi
-		
-		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${NAME}/intel-ucode.img,"
-		fi
-		get_systemd_cfg "${NAME}" "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
-		echo "default chimeraos-entry.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
-	else
-		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
-		fi
-		
-		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
-		fi
-		get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
-	fi
+
+	get_systemd_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDTIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
 	rm -rf /var/lib/pacman # undo frzr-unlock
+
+
+	# Check if there are migrations available
+	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
+		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
+		do
+			unset -f post_install
+			. $m
+			if [ "$(type -t foo)" == function ] ; then
+				echo "Applying post install migration $(basename $m)"
+				post_install "${MOUNT_PATH}" "${SUBVOL}"
+			fi
+			unset -f post_install
+		done
+	fi
 
 	echo "deployment complete; restart to boot into ${NAME}"
 
