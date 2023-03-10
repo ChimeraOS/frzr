@@ -34,9 +34,9 @@ get_boot_cfg() {
 	
 echo "title ${version}
 linux /${version}/vmlinuz-linux
-initrd /${version}/initramfs-linux.img
 ${amd_ucode}
 ${intel_ucode}
+initrd /${version}/initramfs-linux.img
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
