@@ -54,9 +54,9 @@ echo '== get_boot_cfg'
 check 'should return expected boot config' "$(get_boot_cfg '12_abcdef' 'initrd /12_abcdef/amd-ucode.img' 'initrd /12_abcdef/intel-ucode.img' 'ibt=off split_lock_detect=off')" \
 'title 12_abcdef
 linux /12_abcdef/vmlinuz-linux
-initrd /12_abcdef/initramfs-linux.img
 initrd /12_abcdef/amd-ucode.img
 initrd /12_abcdef/intel-ucode.img
+initrd /12_abcdef/initramfs-linux.img
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/12_abcdef quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ibt=off split_lock_detect=off'
 
 
