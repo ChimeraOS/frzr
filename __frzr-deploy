@@ -58,8 +58,6 @@ get_next_boot_deployment() {
 	local TO_BOOT='this-is-not-a-valid-version-string'
 	if [ -f "${boot_cfg_path}" ] && grep "^title" "${boot_cfg_path}" > /dev/null; then
 		TO_BOOT=`grep ^title ${boot_cfg_path} | sed 's/title //'`
-	elif [ -f "${boot_cfg_path}" ] && grep "^default" "${boot_cfg_path}" > /dev/null; then
-		TO_BOOT=`grep ^default ${boot_cfg_path} | sed 's/default //'`
         fi
 
 	echo ${TO_BOOT}
