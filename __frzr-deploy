@@ -26,67 +26,39 @@ get_img_url() {
     echo $result | jq 'first | .url' | sed 's/"//g'
 }
 
-get_syslinux_dir() {
-	local base=${1}
-
-	# for legacy BIOS installations
-	local result="${base}/boot/syslinux"
-
-	if [ ! -d ${result} ]; then
-		# for compatibility with older installations
-		result="${base}/boot/EFI/syslinux"
-	fi
-
-	if [ ! -d ${result} ]; then
-		# for new UEFI installations
-		result="${base}/boot/EFI/BOOT"
-	fi
-
-	if [ ! -d ${result} ]; then
-		result=""
-	fi
-
-	echo ${result}
-}
-
-get_syslinux_prefix() {
-	local base=${1}
-	local syslinux_dir=${2}
-
-	realpath -m --relative-to=${syslinux_dir} ${base}/boot
-}
-
-get_syslinux_cfg() {
+get_boot_cfg() {
 	local version=${1}
-	local prefix=${2}
-	local additional_initrd=${3}
+	local amd_ucode=${2}
+	local intel_ucode=${3}
 	local additional_arguments=${4}
-
-echo "default ${version}
-label ${version}
-kernel ${prefix}/${version}/vmlinuz-linux
-append root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}
-initrd ${additional_initrd}${prefix}/${version}/initramfs-linux.img"
+	
+echo "title ${version}
+linux /${version}/vmlinuz-linux
+${amd_ucode}
+${intel_ucode}
+initrd /${version}/initramfs-linux.img
+options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
 
 get_deployment_to_delete() {
 	local current_version=${1}
-	local syslinux_cfg_path=${2}
+	local boot_cfg_path=${2}
 	local deployment_path=${3}
 
-	local TO_BOOT=`get_next_boot_deployment ${current_version} ${syslinux_cfg_path}`
+	local TO_BOOT=`get_next_boot_deployment ${current_version} ${boot_cfg_path}`
+		
 	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
 }
 
 get_next_boot_deployment() {
 	local current_version=${1}
-	local syslinux_cfg_path=${2}
+	local boot_cfg_path=${2}
 
 	local TO_BOOT='this-is-not-a-valid-version-string'
-	if [ -f "${syslinux_cfg_path}" ] && grep "^default" "${syslinux_cfg_path}" > /dev/null; then
-		TO_BOOT=`grep ^default ${syslinux_cfg_path} | sed 's/default //'`
-	fi
+	if [ -f "${boot_cfg_path}" ] && grep "^title" "${boot_cfg_path}" > /dev/null; then
+		TO_BOOT=`grep ^title ${boot_cfg_path} | sed 's/title //'`
+        fi
 
 	echo ${TO_BOOT}
 }
@@ -136,6 +108,11 @@ main() {
 				;;
 		esac
 	done
+	
+	if [ ! -d /sys/firmware/efi/efivars ]; then
+		echo "Legacy BIOS installs are not supported. Aborting."
+		exit 1
+	fi
 
 	# keep only the first param as source
 	FRZR_SOURCE="${FRZR_PARAMS%% *}"
@@ -160,16 +137,8 @@ main() {
 
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
-
-	SYSLINUX_DIR=$(get_syslinux_dir ${MOUNT_PATH})
-
-	if [ -z ${SYSLINUX_DIR} ]; then
-		echo "No syslinux directory could be found"
-		exit 1
-	fi
-
-	PREFIX=$(get_syslinux_prefix ${MOUNT_PATH} ${SYSLINUX_DIR})
-	BOOT_CFG="${SYSLINUX_DIR}/syslinux.cfg"
+	
+	BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
 
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
@@ -268,14 +237,16 @@ main() {
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
-	ADDITIONAL_INITRD=""
+	AMD_UCODE=""
 	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
 		cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/amd-ucode.img,"
+		AMD_UCODE="initrd /${NAME}/amd-ucode.img"
 	fi
+
+	INTEL_UCODE=""
 	if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
 		cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-		ADDITIONAL_INITRD="${ADDITIONAL_INITRD}${PREFIX}/${NAME}/intel-ucode.img,"
+		INTEL_UCODE="initrd /${NAME}/intel-ucode.img"
 	fi
 
 	ADDITIONAL_ARGUMENTS=""
@@ -283,7 +254,8 @@ main() {
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 
-	get_syslinux_cfg ${NAME} ${PREFIX} "${ADDITIONAL_INITRD}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDTIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
@@ -298,7 +270,7 @@ main() {
 			. $m
 			if [ "$(type -t foo)" == function ] ; then
 				echo "Applying post install migration $(basename $m)"
-				post_install "${MOUNT_PATH}" "${SUBVOL}"
+				post_install "${MOUNT_PATH}" "${SUBVOL}" "${NAME}"
 			fi
 			unset -f post_install
 		done

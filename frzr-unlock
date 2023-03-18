@@ -35,10 +35,10 @@ btrfs property set -fts /frzr_root/deployments/${DEPLOYMENT} ro false
 sed -i -e 's/,ro,/,rw,/' /etc/fstab
 
 
-# move kernel/initrd to standard location
+# move kernel/initrd and ucode to standard location
 cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
-SYSLINUX_CFG=$(find ${MOUNT_PATH}/boot -name 'syslinux.cfg' -print -quit)
-sed -i ${SYSLINUX_CFG} -e s,../${DEPLOYMENT}/,../,g
+BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
+sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
 
 
 # copy package database and refresh
