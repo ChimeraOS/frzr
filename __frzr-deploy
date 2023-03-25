@@ -268,8 +268,7 @@ main() {
 		do
 			unset -f post_install
 			. $m
-			if [ "$(type -t foo)" == function ] ; then
-				echo "Applying post install migration $(basename $m)"
+			if [ "$(type -t post_install)" == function ] ; then
 				post_install "${MOUNT_PATH}" "${SUBVOL}" "${NAME}"
 			fi
 			unset -f post_install
