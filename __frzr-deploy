@@ -139,6 +139,7 @@ main() {
 	mkdir -p ${DEPLOY_PATH}
 	
 	BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
+	mkdir -p ${MOUNT_PATH}/boot/loader/entries
 
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
