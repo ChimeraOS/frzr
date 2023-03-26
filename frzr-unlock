@@ -33,6 +33,7 @@ DEPLOYMENT=$(frzr-release)
 mount -o remount,rw /
 btrfs property set -fts /frzr_root/deployments/${DEPLOYMENT} ro false
 sed -i -e 's/,ro,/,rw,/' /etc/fstab
+systemctl daemon-reload
 
 
 # move kernel/initrd and ucode to standard location
