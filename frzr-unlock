@@ -36,9 +36,12 @@ sed -i -e 's/,ro,/,rw,/' /etc/fstab
 
 
 # move kernel/initrd and ucode to standard location
-cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
 BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
-sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
+if [ -f "${BOOT_CFG}" ]; then
+	# guard is for compatibility with systems still using syslinux during the transition to systemd-boot
+	cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
+	sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
+fi
 
 
 # copy package database and refresh
