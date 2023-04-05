@@ -30,10 +30,6 @@ create_swap() {
         local mount_path=${1}
         local deployment_dir=${2}
         
-        if [ ! -f $mount_path/swap/swapfile ] ; then
-                btrfs filesystem mkswapfile $mount_path/swap/swapfile
-	fi
-	
         mkdir -p $mount_path/swap
         
         if [ ! -f $mount_path/swap/swapfile ] ; then
