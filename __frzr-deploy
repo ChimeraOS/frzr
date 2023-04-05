@@ -26,18 +26,37 @@ get_img_url() {
     echo $result | jq 'first | .url' | sed 's/"//g'
 }
 
+create_swap() {
+        local mount_path=${1}
+        local deployment_dir=${2}
+        
+        if [ ! -f $mount_path/swap/swapfile ] ; then
+                btrfs filesystem mkswapfile $mount_path/swap/swapfile
+	fi
+	
+        mkdir -p $mount_path/swap
+        
+        if [ ! -f $mount_path/swap/swapfile ] ; then
+                btrfs filesystem mkswapfile $mount_path/swap/swapfile
+	fi
+
+        cp ${deployment_dir}/etc/fstab $mount_path/etc/fstab
+        echo "/frzr_root/swap/swapfile        none        swap        defaults      0 0" >> $mount_path/etc/fstab
+}
+
 get_boot_cfg() {
 	local version=${1}
 	local amd_ucode=${2}
 	local intel_ucode=${3}
 	local additional_arguments=${4}
+	local swap_arguments=${5}
 	
 echo "title ${version}
 linux /${version}/vmlinuz-linux
 ${amd_ucode}
 ${intel_ucode}
 initrd /${version}/initramfs-linux.img
-options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
+options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments} ${SWAP_ARGUMENTS}"
 
 }
 
@@ -254,8 +273,17 @@ main() {
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
-
-	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	
+        create_swap "${MOUNT_PATH}" "${SUBVOL}"
+	SWAP_ARGUMENTS=""
+	
+	if [ -e ${MOUNT_PATH}/swap/swapfile ] ; then
+	        resume_offset="resume_offset=$(btrfs inspect-internal map-swapfile -r ${MOUNT_PATH}/swap/swapfile)"
+	        resume="resume=UUID=$(blkid ${MOUNT_PATH}/swap/swapfile | cut -d' ' -f2 | cut -d\" -f2)"
+		SWAP_ARGUMENTS="${resume_offset} ${resume}"
+	fi
+	
+	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" "${SWAP_ARGUMENTS}" > ${BOOT_CFG}
 	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
