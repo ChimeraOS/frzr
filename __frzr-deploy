@@ -173,6 +173,11 @@ main() {
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="/root/tmp_source/${FILE_NAME}"
+	elif [[ "$FRZR_SOURCE" == *".img.tar.xz" ]]; then
+		FILE_NAME=$(basename ${FRZR_SOURCE})
+		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+		SUBVOL="${DEPLOY_PATH}/${NAME}"
+		IMG_FILE=${FRZR_SOURCE}
 	else
 		REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
 		CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
