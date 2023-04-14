@@ -84,7 +84,6 @@ main() {
 	fi
 
 	FRZR_CHECK_UPDATE=0
-	FRZR_IMAGE_SOURCE=$1
 	FRZR_STEAM_PROGRESS=0
 	FRZR_SOURCE=""
 	FRZR_PARAMS=""
@@ -174,7 +173,7 @@ main() {
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="/root/tmp_source/${FILE_NAME}"
-	elif [[ "$FRZR_IMAGE_SOURCE" == *".img.tar.xz" ]]; then
+	elif [[ "$FRZR_SOURCE" == *".img.tar.xz" ]]; then
 		FILE_NAME=$(basename ${FRZR_IMAGE_SOURCE})
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
