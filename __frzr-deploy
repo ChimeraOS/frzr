@@ -178,6 +178,11 @@ main() {
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE=${FRZR_SOURCE}
+	elif [[ "$FRZR_SOURCE" == *".img" ]]; then
+		FILE_NAME=$(basename ${FRZR_SOURCE})
+		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+		SUBVOL="${DEPLOY_PATH}/${NAME}"
+		IMG_FILE=${FRZR_SOURCE}
 	else
 		REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
 		CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
@@ -238,7 +243,12 @@ main() {
 		whiptail --infobox "Extracting and installing system image (${NAME}). This may take some time." 10 50
 	fi
 
-	tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+	if [[ "${IMG_FILE##*.}" == "img" ]]; then
+		btrfs receive --quiet ${DEPLOY_PATH} < ${IMG_FILE}
+	else
+		tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+	fi
+	
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
