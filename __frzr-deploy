@@ -291,8 +291,8 @@ main() {
 		done
 	fi
 	
-	# Check if initramfs needs to be rebuild for a device quirk
-	frzr-initramfs "${MOUNT_PATH}"
+	# Check if initramfs needs to be rebuilt for a device quirk
+	frzr-initramfs
 	
 	echo "deployment complete; restart to boot into ${NAME}"
 

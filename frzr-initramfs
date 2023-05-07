@@ -5,10 +5,9 @@ if [ $EUID -ne 0 ]; then
 	exit 1
 fi
 
-MOUNT_PATH=$1
 # Check device ID and see if any quirks exist
 if [ -e "${MOUNT_PATH}"/etc/device-quirks/id-device ]; then
-   ."${MOUNT_PATH}"/etc/device-quirks/id-device
+   "${MOUNT_PATH}"/etc/device-quirks/./id-device
 else
    echo "Unable to run id-device to determine if quirks need to be applied"
    exit 0
@@ -22,7 +21,13 @@ if [[ $RESULT == 0 ]]; then
 	cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
 	sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
    fi
+   # We may need to grab the /etc/mkinitcpio.conf from the deployed system to the installer media to build
+   cp ${MOUNT_PATH}/etc/mkinitcpio.conf /etc/mkinitcpio.conf
    mkinitcpio -P
+   
+   # Once this is built we'll need to move it back to the deployed system
+   cp /boot/initramfs-linux.img ${MOUNT_PATH}/boot/
+   
 else
    echo "initramfs did not need to be rebuilt"
 fi
