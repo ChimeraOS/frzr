@@ -8,13 +8,14 @@ fi
 # Check device ID and see if any quirks exist
 if [ -e "${MOUNT_PATH}"/etc/device-quirks/id-device ]; then
    "${MOUNT_PATH}"/etc/device-quirks/./id-device
+   RESULT=$?
 else
    echo "Unable to run id-device to determine if quirks need to be applied"
    exit 0
 fi
-RESULT=$?
+
 # Check RESULT and determine if we need to rebuild the initramfs
-if [[ $RESULT == 0 ]]; then
+if [[ ${RESULT} == "0" ]]; then
    BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
    if [ -f "${BOOT_CFG}" ]; then
 	# When rebuilding initramfs we will have to use the standard location
