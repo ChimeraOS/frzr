@@ -290,7 +290,10 @@ main() {
 			unset -f post_install
 		done
 	fi
-
+	
+	# Check if initramfs needs to be rebuild for a device quirk
+	frzr-initramfs "${MOUNT_PATH}"
+	
 	echo "deployment complete; restart to boot into ${NAME}"
 
 	umount -R ${MOUNT_PATH}
