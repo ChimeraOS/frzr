@@ -19,11 +19,8 @@ if [ -d /tmp/frzr_root ]; then
     DEPLOYMENT_DIR=$(ls -d /tmp/frzr_root/deployments/chimeraos*/)
 
     if [ -d "$DEPLOYMENT_DIR" ]; then
-         
-	# Mount boot and OS drives
-	mount -L frzr_root /mnt
-        mount -L frzr_efi /mnt/deployments/chimeraos*/boot
-        cd /mnt/deployments/chimeraos*/
+    
+        cd /tmp/frzr_root/deployments/chimeraos*/
         # Mount necessary file systems
         mount -t proc /proc proc/
         mount -t sysfs /sys sys/
@@ -31,7 +28,7 @@ if [ -d /tmp/frzr_root ]; then
         
         # Set R/W permissions
         btrfs property set -fts ${DEPLOYMENT_DIR} ro false
-        chroot /mnt/deployments/*/ /bin/bash <<EOF
+        chroot /tmp/frzr_root/deployments/chimeraos*/ /bin/bash <<EOF
         # Commands to be ran in chroot
         cp /boot/chimeraos*/vmlinuz* /boot/vmlinuz-linux-lts
         mkinitcpio -P
