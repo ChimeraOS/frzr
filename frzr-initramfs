@@ -18,17 +18,53 @@ fi
 if [[ ${RESULT} == "0" ]]; then
    BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
    if [ -f "${BOOT_CFG}" ]; then
-	# When rebuilding initramfs we will have to use the standard location
-	cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
-	sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
+	# When rebuilding initramfs we will have to use the standard location. I'll have to figure out a better way of handling this..
+	cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/vmlinuz-linux ${MOUNT_PATH}/boot/vmlinuz-linux-lts
    fi
-   # We may need to grab the /etc/mkinitcpio.conf from the deployed system to the installer media to build
-   cp ${MOUNT_PATH}/etc/mkinitcpio.conf /etc/mkinitcpio.conf
-   mkinitcpio -P
    
-   # Once this is built we'll need to move it back to the deployed system
-   cp /boot/initramfs-linux.img ${MOUNT_PATH}/boot/
-   
+if [ -d /tmp/frzr_root ]; then
+    # Find the latest deployment directory
+    DEPLOYMENT_DIR=$(ls -d /tmp/frzr_root/deployments/chimeraos*/)
+
+    if [ -d "$DEPLOYMENT_DIR" ]; then
+         
+	# Mount boot and OS drives
+	mount -L frzr_root /mnt
+        mount -L frzr_efi /mnt/boot
+        cd /mnt/deployments/chimeraos*/
+        # Mount necessary file systems
+        mount -t proc /proc proc/
+        mount -t sysfs /sys sys/
+        mount --rbind /dev dev/
+        
+        # Set R/W permissions
+        btrfs property set -fts ${DEPLOYMENT_DIR} ro false
+        chroot /mnt/deployments/*/ /bin/bash <<EOF
+        # Commands to be ran in chroot
+        mkinitcpio -P
+EOF
+	#Restore vmlinuz location and move built initramfs to it's destination
+	cp ${MOUNT_PATH}/boot/vmlinuz-linux-lts ${MOUNT_PATH}/boot/${DEPLOYMENT}/vmlinuz-linux
+	cp ${MOUNT_PATH}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${DEPLOYMENT}/initramfs-linux.img
+	# Set back to R/O permissions
+	btrfs property set -fts ${DEPLOYMENT_DIR} ro true
+    else
+        echo "No deployment directory found in /tmp/frzr_root"
+    fi
+else
+    echo "We don't appear to be running from an arch install media"
+fi
+   # Build initramfs from within a deployed system
+   if [ -d /frzr_root ]; then
+      # Set R/W permissions
+      btrfs property set -fts /frzr_root/deployments/chimeraos*/ ro false
+      mkinitcpio -P
+      # Set R/O permissions
+      btrfs property set -fts /frzr_root/deployments/chimeraos*/ ro true
+   fi
+   #Restore vmlinuz location and move built initramfs to it's destination
+   cp ${MOUNT_PATH}/boot/vmlinuz-linux-lts ${MOUNT_PATH}/boot/${DEPLOYMENT}/vmlinuz-linux
+   cp ${MOUNT_PATH}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${DEPLOYMENT}/initramfs-linux.img
 else
    echo "initramfs did not need to be rebuilt"
 fi
