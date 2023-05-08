@@ -5,38 +5,53 @@ if [ $EUID -ne 0 ]; then
 	exit 1
 fi
 
-# Check device ID and see if any quirks exist
+# If the script is being ran directly we will need to set the paths
+if [ -z "${SUBVOL}" ]; then
+	if [ -d /tmp/frzr_root ]; then
+		SUBVOL=/tmp/frzr_root/deployments/chimeraos*/
+		echo "Subvolume directory is set as $SUBVOL"
+	else
+		SUBVOL=/frzr_root/deployments/chimeraos*/
+		echo "Subvolume directory is set as $SUBVOL"
+	fi
+fi
+
+# Check device ID and see if any quirks exist in the new image being deployed
 if [ -e "${SUBVOL}"/etc/device-quirks/id-device ]; then
-	"${SUBVOL}"/etc/device-quirks/./id-device
-	RESULT=$?
+        "${SUBVOL}"/etc/device-quirks/id-device
+        RESULT=$?
+# If we don't see what were looking for in the new image, then check the current system as the last resort
+elif [ -e "/etc/device-quirks/id-device" ]; then
+        /etc/device-quirks/id-device
+        RESULT=$?
+# This will happen if the device quirks package is not installed, exit gracefully
 else
    echo "Unable to run id-device to determine if quirks need to be applied"
    exit 0
 fi
 
+
 if [ ${RESULT} == "0" ]; then
 	if [ -d /tmp/frzr_root ]; then
-	    # Find the latest deployment directory
-	    DEPLOYMENT_DIR=$(ls -d /tmp/frzr_root/deployments/chimeraos*/)
 
-	    if [ -d "$DEPLOYMENT_DIR" ]; then
+	    if [ -d "${SUBVOL}" ]; then
 	    
-		cd /tmp/frzr_root/deployments/chimeraos*/
+		cd ${SUBVOL}
 		# Mount necessary file systems
 		mount -t proc /proc proc/
 		mount -t sysfs /sys sys/
 		mount --rbind /dev dev/
 		
 		# Set R/W permissions
-		btrfs property set -fts ${DEPLOYMENT_DIR} ro false
-		chroot /tmp/frzr_root/deployments/chimeraos*/ /bin/bash <<EOF
+		btrfs property set -fts ${SUBVOL} ro false
+		chroot ${SUBVOL} /bin/bash <<EOF
 		# Commands to be ran in chroot
 		cp /boot/chimeraos*/vmlinuz* /boot/vmlinuz-linux-lts
 		mkinitcpio -P
 		cp /boot/initramfs-linux-lts.img /boot/chimeraos*/initramfs-linux.img
 EOF
 		# Set back to R/O permissions
-		btrfs property set -fts ${DEPLOYMENT_DIR} ro true
+		btrfs property set -fts ${SUBVOL} ro true
 	    else
 		echo "No deployment directory found in /tmp/frzr_root"
 		exit 1
@@ -48,12 +63,12 @@ EOF
 	   # Build initramfs from within a deployed system
 	if [ -d /frzr_root ]; then
 	      # Set R/W permissions
-	      btrfs property set -fts /frzr_root/deployments/chimeraos*/ ro false
+	      btrfs property set -fts ${SUBVOL} ro false
 	      cp /boot/chimeraos*/vmlinuz* /boot/vmlinuz-linux-lts
 	      mkinitcpio -P
 	      cp /boot/initramfs-linux-lts.img /boot/chimeraos*/initramfs-linux.img
 	      # Set R/O permissions
-	      btrfs property set -fts /frzr_root/deployments/chimeraos*/ ro true
+	      btrfs property set -fts ${SUBVOL} ro true
 	fi
 else
    echo "initramfs did not need to be rebuilt"
