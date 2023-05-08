@@ -30,14 +30,10 @@ create_swap() {
         local mount_path=${1}
         local deployment_dir=${2}
         
-        if [ ! -d "$mount_path/swap/" ]; then
-        	mkdir -p $mount_path/swap
-        fi
-        
-        if [ ! -f $mount_path/swap/swapfile ] ; then
-                btrfs filesystem mkswapfile $mount_path/swap/swapfile
+        if [ ! -f $mount_path/home/swapfile ] ; then
+                btrfs filesystem mkswapfile $mount_path/home/swapfile
                 cp ${deployment_dir}/etc/fstab $mount_path/etc/fstab
-                echo "/frzr_root/swap/swapfile        none        swap        defaults      0 0" >> $mount_path/etc/fstab
+                echo "/frzr_root/home/swapfile        none        swap        defaults      0 0" >> $mount_path/etc/fstab
 	else
 		echo "Swapfile appears to already exist"
 	fi
@@ -277,9 +273,9 @@ main() {
         create_swap "${MOUNT_PATH}" "${SUBVOL}"
 	SWAP_ARGUMENTS=""
 	
-	if [ -e ${MOUNT_PATH}/swap/swapfile ] ; then
-	        resume_offset="resume_offset=$(btrfs inspect-internal map-swapfile -r ${MOUNT_PATH}/swap/swapfile)"
-	        resume="resume=UUID=$(blkid ${MOUNT_PATH}/swap/swapfile | cut -d' ' -f2 | cut -d\" -f2)"
+	if [ -e ${MOUNT_PATH}/home/swapfile ] ; then
+	        resume_offset="resume_offset=$(btrfs inspect-internal map-swapfile -r ${MOUNT_PATH}/home/swapfile)"
+	        resume="resume=UUID=$(blkid ${MOUNT_PATH}/home/swapfile | cut -d' ' -f2 | cut -d\" -f2)"
 		SWAP_ARGUMENTS="${resume_offset} ${resume}"
 	fi
 	
