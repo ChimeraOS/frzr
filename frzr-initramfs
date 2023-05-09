@@ -17,8 +17,8 @@ if [ -z "${SUBVOL}" ]; then
 fi
 
 # Check device ID and see if any quirks exist in the new image being deployed
-if [ -e "${SUBVOL}"/etc/device-quirks/id-device ]; then
-        "${SUBVOL}"/etc/device-quirks/id-device
+if [ -e "${SUBVOL}"/usr/share/device-quirks/id-device ]; then
+        "${SUBVOL}"/usr/share/device-quirks/id-device
         RESULT=$?
 # If we don't see what were looking for in the new image, then check the current system as the last resort
 elif [ -e "/etc/device-quirks/id-device" ]; then
