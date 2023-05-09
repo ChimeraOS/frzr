@@ -6,7 +6,7 @@ if [ $EUID -ne 0 ]; then
 fi
 
 # If the script is being ran directly we will need to set the paths
-if [ -z "${SUBVOL}" ]; then
+if [ -z ${SUBVOL} ]; then
 	if [ -d /tmp/frzr_root ]; then
 		SUBVOL=/tmp/frzr_root/deployments/chimeraos*/
 		echo "Subvolume directory is set as $SUBVOL"
@@ -46,9 +46,9 @@ if [ ${RESULT} == "0" ]; then
 		btrfs property set -fts ${SUBVOL} ro false
 		chroot ${SUBVOL} /bin/bash <<EOF
 		# Commands to be ran in chroot
-		cp /boot/chimeraos*/vmlinuz* /boot/vmlinuz-linux-lts
+		cp ${MOUNT_PATH}/boot/chimeraos*/vmlinuz* ${MOUNT_PATH}/boot/vmlinuz-linux-lts
 		mkinitcpio -P
-		cp /boot/initramfs-linux-lts.img /boot/chimeraos*/initramfs-linux.img
+		cp ${MOUNT_PATH}/boot/initramfs-linux-lts.img ${MOUNT_PATH}/boot/chimeraos*/initramfs-linux.img
 EOF
 		# Set back to R/O permissions
 		btrfs property set -fts ${SUBVOL} ro true
@@ -64,9 +64,9 @@ EOF
 	if [ -d /frzr_root ]; then
 	      # Set R/W permissions
 	      btrfs property set -fts ${SUBVOL} ro false
-	      cp /boot/chimeraos*/vmlinuz* /boot/vmlinuz-linux-lts
+	      cp ${MOUNT_PATH}/boot/chimeraos*/vmlinuz* ${MOUNT_PATH}/boot/vmlinuz-linux-lts
 	      mkinitcpio -P
-	      cp /boot/initramfs-linux-lts.img /boot/chimeraos*/initramfs-linux.img
+	      cp ${MOUNT_PATH}/boot/initramfs-linux-lts.img ${MOUNT_PATH}/boot/chimeraos*/initramfs-linux.img
 	      # Set R/O permissions
 	      btrfs property set -fts ${SUBVOL} ro true
 	fi
