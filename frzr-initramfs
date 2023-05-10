@@ -1,0 +1,109 @@
+#! /bin/bash
+
+if [ $EUID -ne 0 ]; then
+    echo "$(basename $0) must be run as root"
+    exit 1
+fi
+
+# If the script is being ran directly we will need to set the paths
+if [ -d /tmp/frzr_root ]; then
+    export MOUNT_PATH=$1
+    export SUBVOL=$2
+    export NAME=$3
+    
+    # Checking paths
+    echo "Checking installion info..."
+    echo "Root Mount:${MOUNT_PATH}"
+    echo "Subvolume Mount:${SUBVOL}"
+    echo "Deployment Name:${NAME}"
+else
+    # This is for running frzr-initramfs from the deployed system itself without frzr-deploy
+    export MOUNT_PATH=""
+    export SUBVOL=""
+fi
+
+if [ -d /tmp/frzr_root ]; then
+    
+    if [ -d "${SUBVOL}" ]; then
+        
+        cd ${SUBVOL}
+        # Mount necessary file systems
+        mount -t proc /proc proc/
+        mount -t sysfs /sys sys/
+        mount --rbind /dev dev/
+        
+        # Set R/W permissions
+        btrfs property set -fts ${SUBVOL} ro false
+	chroot ${SUBVOL} /bin/bash <<EOF
+# Commands to be ran in chroot
+
+### Create distro mkinitcpio preset
+echo '
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+ALL_microcode=(/boot/*-ucode.img)
+
+PRESETS="default"
+
+default_image="/boot/initramfs-linux.img"
+' > /etc/mkinitcpio.d/\${NAME%%-*}.preset
+
+### Rebuild Initramfs with custom preset
+mkinitcpio -p \${NAME%%-*}
+EOF
+        # Set back to R/O permissions
+        btrfs property set -fts ${SUBVOL} ro true
+    else
+        echo "No deployment directory found"
+        exit 1
+    fi
+    exit 0
+else
+    echo "We don't appear to be running from an arch install media"
+fi
+# Build initramfs from within a deployed system
+if [ -d /frzr_root ]; then
+
+    ### Get Distro version and build
+    ID=`grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
+    
+    VERSIONID=`grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
+    
+    BUILDID=`grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
+    
+    BUILD="$ID"-"$VERSIONID"_"$BUILDID"
+    DEPLOYMENT_PATH="/frzr_root/deployments/$BUILD"
+    
+    # Get locked state
+    RELOCK=0
+    LOCK_STATE=$(btrfs property get -fts "$DEPLOYMENT_PATH")
+    if [[ $LOCK_STATE == *"ro=true"* ]]; then
+        btrfs property set -fts ${DEPLOYMENT_PATH} ro false
+        RELOCK=1
+    else
+        echo "Filesystem appears to be unlocked"
+    fi
+    
+    echo $BUILD
+
+    ### Create distro mkinitcpio preset
+    echo '
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/'$BUILD'/vmlinuz-linux"
+ALL_microcode=(/boot/'$BUILD'/*-ucode.img)
+
+PRESETS="default"
+
+default_image="/boot/'$BUILD'/initramfs-linux.img"
+' > /etc/mkinitcpio.d/$ID.preset
+    
+    ### Rebuild Initramfs with custom preset
+    mkinitcpio -p $ID
+    
+    if [[ $RELOCK == 1 ]]; then
+       btrfs property set -fts ${DEPLOYMENT_PATH} ro true
+    else
+       # Move rebuilt images to the unlocked location if system was unlocked prior
+       cp /boot/$BUILD/* /boot
+    fi
+fi

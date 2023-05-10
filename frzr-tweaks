@@ -1,0 +1,37 @@
+#! /bin/bash
+
+if [ $EUID -ne 0 ]; then
+    echo "$(basename $0) must be run as root"
+    exit 1
+fi
+
+# If the script is being ran directly we will need to set the paths
+if [ -d /tmp/frzr_root ]; then
+    export MOUNT_PATH=$1
+    export SUBVOL=$2
+    export NAME=$3
+    
+    # Checking paths
+    echo "Checking installion info..."
+    echo "Root Mount:${MOUNT_PATH}"
+    echo "Subvolume Mount:${SUBVOL}"
+    echo "Deployment Name:${NAME}"
+else
+    # This is for running frzr-initramfs from the deployed system itself without frzr-deploy
+    export MOUNT_PATH=""
+    export SUBVOL=""
+fi
+
+# Check device ID and see if any quirks exist in the new image being deployed
+if [ -e ${SUBVOL}/usr/share/device-quirks/id-device ]; then
+    ${SUBVOL}/usr/share/device-quirks/id-device
+    RESULT=$?
+    # If we don't see what were looking for in the new image, then check the current system as the last resort
+    elif [ -e "/etc/device-quirks/id-device" ]; then
+    /etc/device-quirks/id-device
+    RESULT=$?
+    # This will happen if the device quirks package is not installed, exit gracefully
+else
+    echo "Unable to run id-device to determine if quirks need to be applied"
+    exit 0
+fi
