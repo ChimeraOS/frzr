@@ -6,15 +6,22 @@ if [ $EUID -ne 0 ]; then
 fi
 
 # If the script is being ran directly we will need to set the paths
-if [ -z ${SUBVOL} ]; then
-	if [ -d /tmp/frzr_root ]; then
-		SUBVOL=/tmp/frzr_root/deployments/chimeraos*/
-		echo "Subvolume directory is set as $SUBVOL"
-	else
-		SUBVOL=/frzr_root/deployments/chimeraos*/
-		echo "Subvolume directory is set as $SUBVOL"
-	fi
+if [ -d /tmp/frzr_root ]; then
+	export MOUNT_PATH=$1
+	export SUBVOL=$2
+	export NAME=$3
+else
+# This is for running frzr-initramfs from the deployed system itself without frzr-deploy
+	export MOUNT_PATH=""
+	export SUBVOL=""
+	export NAME=/frzr_root/deployments/chimeraos*/ # Temporary solution
 fi
+
+# Checking paths
+echo "Checking installion info..."
+echo "Root Mount:${MOUNT_PATH}"
+echo "Subvolume Mount:${SUBVOL}"
+echo "Deployment Name:${NAME}"
 
 # Check device ID and see if any quirks exist in the new image being deployed
 if [ -e ${SUBVOL}/usr/share/device-quirks/id-device ]; then
@@ -30,8 +37,9 @@ else
    exit 0
 fi
 
-
 if [ ${RESULT} == "0" ]; then
+
+	echo "We received the signal to rebuild the initramfs"
 	if [ -d /tmp/frzr_root ]; then
 
 	    if [ -d "${SUBVOL}" ]; then
