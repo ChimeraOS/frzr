@@ -25,7 +25,7 @@ fi
 # Check device ID and see if any quirks exist in the new image being deployed
 if [ -e ${SUBVOL}/usr/share/device-quirks/id-device ]; then
     ${SUBVOL}/usr/share/device-quirks/id-device
-    RESULT=$
+    RESULT=$?
     if [ "$RESULT" -eq 0 -a -z "{$SUBVOL}" ]; then
         /usr/bin/frzr-initramfs
     fi
