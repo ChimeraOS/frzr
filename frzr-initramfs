@@ -66,11 +66,8 @@ if [ -d /frzr_root ]; then
 
     ### Get Distro version and build
     ID=`grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
-    
     VERSIONID=`grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
-    
     BUILDID=`grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
-    
     BUILD="$ID"-"$VERSIONID"_"$BUILDID"
     DEPLOYMENT_PATH="/frzr_root/deployments/$BUILD"
     
