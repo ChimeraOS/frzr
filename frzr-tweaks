@@ -6,7 +6,7 @@ if [ $EUID -ne 0 ]; then
 fi
 
 # Check if device quirks exist in the new image when frzr-deploy is used
-if [ -v ${SUBVOL} ]; then
+if [ -v SUBVOL ]; then
     echo "Checking newly deployed system for device-quirks"
     if [ -e "${SUBVOL}/usr/share/device-quirks/id-device" ]; then
         ${SUBVOL}/usr/share/device-quirks/id-device
