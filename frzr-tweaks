@@ -26,10 +26,10 @@ fi
 if [ -e ${SUBVOL}/usr/share/device-quirks/id-device ]; then
     ${SUBVOL}/usr/share/device-quirks/id-device
     RESULT=$?
-    # If we don't see what were looking for in the new image, then check the current system as the last resort
-    elif [ -e "/etc/device-quirks/id-device" ]; then
-    /etc/device-quirks/id-device
-    RESULT=$?
+    if [ "$RESULT" -eq 0 -a -z "{$SUBVOL}" ]; then
+        /usr/bin/frzr-initramfs
+    fi
+    
     # This will happen if the device quirks package is not installed, exit gracefully
 else
     echo "Unable to run id-device to determine if quirks need to be applied"
