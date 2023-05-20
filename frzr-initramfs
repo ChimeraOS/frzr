@@ -7,22 +7,6 @@ fi
 
 # If the script is being ran directly we will need to set the paths
 if [ -d /tmp/frzr_root ]; then
-    export MOUNT_PATH=$1
-    export SUBVOL=$2
-    export NAME=$3
-    
-    # Checking paths
-    echo "Checking installion info..."
-    echo "Root Mount:${MOUNT_PATH}"
-    echo "Subvolume Mount:${SUBVOL}"
-    echo "Deployment Name:${NAME}"
-else
-    # This is for running frzr-initramfs from the deployed system itself without frzr-deploy
-    export MOUNT_PATH=""
-    export SUBVOL=""
-fi
-
-if [ -d /tmp/frzr_root ]; then
     
     if [ -d "${SUBVOL}" ]; then
         

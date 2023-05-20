@@ -285,12 +285,17 @@ main() {
 			unset -f post_install
 		done
 	fi
-
+	
+	# Export variables to be used by child processes for frzr-tweaks and frzr-initramfs
+	export MOUNT_PATH
+	export SUBVOL
+	export NAME
+	
 	# Run frzr-tweaks to execute the device-quirks to be supplied by the deployed images
-	frzr-tweaks "${MOUNT_PATH}" "${SUBVOL}" "${NAME}"
+	frzr-tweaks
 
 	# Run frzr-initramfs to create mkinicpio.conf and build an initramfs
-	frzr-initramfs "${MOUNT_PATH}" "${SUBVOL}" "${NAME}"
+	frzr-initramfs
 
 	rm -f ${MOUNT_PATH}/*.img.*
 

@@ -5,33 +5,26 @@ if [ $EUID -ne 0 ]; then
     exit 1
 fi
 
-# If the script is being ran directly we will need to set the paths
-if [ -d /tmp/frzr_root ]; then
-    export MOUNT_PATH=$1
-    export SUBVOL=$2
-    export NAME=$3
-    
-    # Checking paths
-    echo "Checking installion info..."
-    echo "Root Mount:${MOUNT_PATH}"
-    echo "Subvolume Mount:${SUBVOL}"
-    echo "Deployment Name:${NAME}"
-else
-    # This is for running frzr-initramfs from the deployed system itself without frzr-deploy
-    export MOUNT_PATH=""
-    export SUBVOL=""
-fi
-
-# Check device ID and see if any quirks exist in the new image being deployed
-if [ -e ${SUBVOL}/usr/share/device-quirks/id-device ]; then
-    ${SUBVOL}/usr/share/device-quirks/id-device
-    RESULT=$?
-    if [ "$RESULT" -eq 0 -a -z "{$SUBVOL}" ]; then
-        /usr/bin/frzr-initramfs
+# Check if device quirks exist in the new image when frzr-deploy is used
+if [ -v ${SUBVOL} ]; then
+    echo "Checking newly deployed system for device-quirks"
+    if [ -e "${SUBVOL}/usr/share/device-quirks/id-device" ]; then
+        ${SUBVOL}/usr/share/device-quirks/id-device
+    else
+        echo "Device-quirks package was not found, skipping..."
     fi
-    
-    # This will happen if the device quirks package is not installed, exit gracefully
 else
-    echo "Unable to run id-device to determine if quirks need to be applied"
-    exit 0
+# Check if device quirks exist when frzr-tweaks is ran directly
+    echo "Checking for device-quirks"
+    if [ -e "/usr/share/device-quirks/id-device" ]; then
+        /usr/share/device-quirks/id-device
+        RESULT=$?
+        # Check if we received the signal to rebuild initramfs
+        if [ ${RESULT} == "0" ]; then
+           echo "Signal recieved to rebuild initramfs"
+           /usr/bin/frzr-initramfs
+        fi
+    else
+        echo "Device-quirks packages was not found, skipping..."
+    fi
 fi
