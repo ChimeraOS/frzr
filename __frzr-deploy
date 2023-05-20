@@ -27,17 +27,23 @@ get_img_url() {
 }
 
 create_swap() {
-        local mount_path=${1}
-        local deployment_dir=${2}
-        
-        if [ ! -f $mount_path/home/swapfile ] ; then
-                btrfs filesystem mkswapfile $mount_path/home/swapfile
-                cp ${deployment_dir}/etc/fstab $mount_path/etc/fstab
-                echo "/frzr_root/home/swapfile        none        swap        defaults      0 0" >> $mount_path/etc/fstab
-	else
-		echo "Swapfile appears to already exist"
-	fi
+    local mount_path=${1}
+    local deployment_dir=${2}
+    
+    local available_space=$(df -B 1G --output=avail "$mount_path" | tail -n 1)
+    local required_space=4
 
+    if (( available_space >= required_space )); then
+        if [ ! -f "$mount_path/home/swapfile" ]; then
+            btrfs filesystem mkswapfile --size 4G "$mount_path/home/swapfile"
+            cp "${deployment_dir}/etc/fstab" "$mount_path/etc/fstab"
+            echo "/frzr_root/home/swapfile        none        swap        defaults      0 0" >> "$mount_path/etc/fstab"
+        else
+            echo "Swapfile appears to already exist"
+        fi
+    else
+        echo "Insufficient disk space. 4GB required."
+    fi
 }
 
 get_boot_cfg() {
