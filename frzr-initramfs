@@ -48,10 +48,18 @@ fi
 # Build initramfs from within a deployed system
 if [ -d /frzr_root ]; then
 
-    ### Get Distro version and build
-    ID=`grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
-    VERSIONID=`grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
-    BUILDID=`grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed s/\"//g`
+if [ -n "$SUBVOL" ]; then
+    ### Get Distro version and build from $SUBVOL/etc/os-release
+    ID=$(grep '^ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+    VERSIONID=$(grep '^VERSION_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+    BUILDID=$(grep '^BUILD_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+else
+    ### Get Distro version and build from /etc/os-release
+    ID=$(grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+    VERSIONID=$(grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+    BUILDID=$(grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+fi
+
     BUILD="$ID"-"$VERSIONID"_"$BUILDID"
     DEPLOYMENT_PATH="/frzr_root/deployments/$BUILD"
     
