@@ -5,7 +5,7 @@ if [ $EUID -ne 0 ]; then
     exit 1
 fi
 
-# If the script is being ran directly we will need to set the paths
+# Check if script is being ran frmo the install media
 if [ -d /tmp/frzr_root ]; then
     
     if [ -d "${SUBVOL}" ]; then
@@ -45,20 +45,22 @@ EOF
 else
     echo "We don't appear to be running from an arch install media"
 fi
+
+
 # Build initramfs from within a deployed system
 if [ -d /frzr_root ]; then
 
-if [ -n "$SUBVOL" ]; then
-    ### Get Distro version and build from $SUBVOL/etc/os-release
-    ID=$(grep '^ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
-    VERSIONID=$(grep '^VERSION_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
-    BUILDID=$(grep '^BUILD_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
-else
-    ### Get Distro version and build from /etc/os-release
-    ID=$(grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
-    VERSIONID=$(grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
-    BUILDID=$(grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
-fi
+    if [ -n "$SUBVOL" ]; then
+        ### Grabbing name of the new deployed system
+        ID=$(grep '^ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+        VERSIONID=$(grep '^VERSION_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+        BUILDID=$(grep '^BUILD_ID=' "$SUBVOL/etc/os-release" | awk -F= '{ print $2 }' | sed 's/"//g')
+    else
+        ### Grabbing name of the currently deployed system
+        ID=$(grep '^ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+        VERSIONID=$(grep '^VERSION_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+        BUILDID=$(grep '^BUILD_ID=' /etc/os-release | awk -F= '{ print $2 }' | sed 's/"//g')
+    fi
 
     BUILD="$ID"-"$VERSIONID"_"$BUILDID"
     DEPLOYMENT_PATH="/frzr_root/deployments/$BUILD"
@@ -73,7 +75,7 @@ fi
         echo "Filesystem appears to be unlocked"
     fi
     
-    echo $BUILD
+    echo "Generating configuration for $BUILD"
 
     ### Create distro mkinitcpio preset
     echo '
