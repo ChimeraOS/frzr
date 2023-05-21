@@ -41,7 +41,6 @@ EOF
         echo "No deployment directory found"
         exit 1
     fi
-    exit 0
 else
     echo "We don't appear to be running from an arch install media"
 fi
