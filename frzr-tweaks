@@ -18,12 +18,6 @@ else
     echo "Checking for device-quirks"
     if [ -e "/usr/share/device-quirks/id-device" ]; then
         /usr/share/device-quirks/id-device
-        RESULT=$?
-        # Check if we received the signal to rebuild initramfs
-        if [ ${RESULT} == "0" ]; then
-           echo "Signal recieved to rebuild initramfs"
-           /usr/bin/frzr-initramfs
-        fi
     else
         echo "Device-quirks packages was not found, skipping..."
     fi
