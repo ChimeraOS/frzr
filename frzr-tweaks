@@ -1,0 +1,24 @@
+#! /bin/bash
+
+if [ $EUID -ne 0 ]; then
+    echo "$(basename $0) must be run as root"
+    exit 1
+fi
+
+# Check if device quirks exist in the new image when frzr-deploy is used
+if [ -v SUBVOL ]; then
+    echo "Checking newly deployed system for device-quirks"
+    if [ -e "${SUBVOL}/usr/share/device-quirks/id-device" ]; then
+        ${SUBVOL}/usr/share/device-quirks/id-device
+    else
+        echo "Device-quirks package was not found, skipping..."
+    fi
+else
+# Check if device quirks exist when frzr-tweaks is ran directly
+    echo "Checking for device-quirks"
+    if [ -e "/usr/share/device-quirks/id-device" ]; then
+        /usr/share/device-quirks/id-device
+    else
+        echo "Device-quirks packages was not found, skipping..."
+    fi
+fi
