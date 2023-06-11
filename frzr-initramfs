@@ -88,7 +88,24 @@ default_image="/boot/'$BUILD'/initramfs-linux.img"
 ' > /etc/mkinitcpio.d/$ID.preset
     
     ### Rebuild Initramfs with custom preset
-    mkinitcpio -p $ID
+    
+    if [ -n "$SUBVOL" ]; then
+        cd ${SUBVOL}
+        # Mount necessary file systems
+        mount -t proc /proc proc/
+        mount -t sysfs /sys sys/
+        mount --rbind /dev dev/
+
+	# We have to chroot for new images or else the kernel version can cause initramfs building to fail
+	chroot ${SUBVOL} /bin/bash <<EOF
+# Commands to be ran in chroot
+mkinitcpio -p \${ID}
+EOF
+	umount --recursive $SUBVOL
+    else
+       # If we are not doing a deployment then this will be used for local installs to rebuild initramfs
+       mkinitcpio -p $ID
+    fi
     
     if [[ $RELOCK == 1 ]]; then
        btrfs property set -fts ${DEPLOYMENT_PATH} ro true
