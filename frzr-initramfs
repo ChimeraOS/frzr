@@ -75,17 +75,6 @@ if [ -d /frzr_root ]; then
     fi
     
     echo "Generating configuration for $BUILD"
-
-    ### Create distro mkinitcpio preset
-    echo '
-ALL_config="/etc/mkinitcpio.conf"
-ALL_kver="/boot/'$BUILD'/vmlinuz-linux"
-ALL_microcode=(/boot/'$BUILD'/*-ucode.img)
-
-PRESETS="default"
-
-default_image="/boot/'$BUILD'/initramfs-linux.img"
-' > /etc/mkinitcpio.d/$ID.preset
     
     ### Rebuild Initramfs with custom preset
     
@@ -99,10 +88,30 @@ default_image="/boot/'$BUILD'/initramfs-linux.img"
 	# We have to chroot for new images or else the kernel version can cause initramfs building to fail
 	chroot ${SUBVOL} /bin/bash <<EOF
 # Commands to be ran in chroot
-mkinitcpio -p \${ID}
+### Create distro mkinitcpio preset
+echo '
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+ALL_microcode=(/boot/*-ucode.img)
+
+PRESETS="default"
+
+default_image="/boot/initramfs-linux.img"
+' > /etc/mkinitcpio.d/\${NAME%%-*}.preset
+
+### Rebuild Initramfs with custom preset
+mkinitcpio -p \${NAME%%-*}
 EOF
-	umount --recursive $SUBVOL
     else
+       echo '
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/'$BUILD'/vmlinuz-linux"
+ALL_microcode=(/boot/'$BUILD'/*-ucode.img)
+
+PRESETS="default"
+
+default_image="/boot/'$BUILD'/initramfs-linux.img"
+' > /etc/mkinitcpio.d/$ID.preset
        # If we are not doing a deployment then this will be used for local installs to rebuild initramfs
        mkinitcpio -p $ID
     fi
