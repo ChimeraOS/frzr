@@ -102,6 +102,9 @@ default_image="/boot/initramfs-linux.img"
 ### Rebuild Initramfs with custom preset
 mkinitcpio -p \${NAME%%-*}
 EOF
+    umount -l ${SUBVOL}/proc
+    umount -l ${SUBVOL}/sys
+    umount -l ${SUBVOL}/dev
     else
        echo '
 ALL_config="/etc/mkinitcpio.conf"
