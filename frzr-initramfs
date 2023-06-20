@@ -75,9 +75,38 @@ if [ -d /frzr_root ]; then
     fi
     
     echo "Generating configuration for $BUILD"
+    
+    ### Rebuild Initramfs with custom preset
+    
+    if [ -n "$SUBVOL" ]; then
+        cd ${SUBVOL}
+        # Mount necessary file systems
+        mount -t proc /proc proc/
+        mount -t sysfs /sys sys/
+        mount --rbind /dev dev/
 
-    ### Create distro mkinitcpio preset
-    echo '
+	# We have to chroot for new images or else the kernel version can cause initramfs building to fail
+	chroot ${SUBVOL} /bin/bash <<EOF
+# Commands to be ran in chroot
+### Create distro mkinitcpio preset
+echo '
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+ALL_microcode=(/boot/*-ucode.img)
+
+PRESETS="default"
+
+default_image="/boot/initramfs-linux.img"
+' > /etc/mkinitcpio.d/\${NAME%%-*}.preset
+
+### Rebuild Initramfs with custom preset
+mkinitcpio -p \${NAME%%-*}
+EOF
+    umount -l ${SUBVOL}/proc
+    umount -l ${SUBVOL}/sys
+    umount -l ${SUBVOL}/dev
+    else
+       echo '
 ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/'$BUILD'/vmlinuz-linux"
 ALL_microcode=(/boot/'$BUILD'/*-ucode.img)
@@ -86,9 +115,9 @@ PRESETS="default"
 
 default_image="/boot/'$BUILD'/initramfs-linux.img"
 ' > /etc/mkinitcpio.d/$ID.preset
-    
-    ### Rebuild Initramfs with custom preset
-    mkinitcpio -p $ID
+       # If we are not doing a deployment then this will be used for local installs to rebuild initramfs
+       mkinitcpio -p $ID
+    fi
     
     if [[ $RELOCK == 1 ]]; then
        btrfs property set -fts ${DEPLOYMENT_PATH} ro true
