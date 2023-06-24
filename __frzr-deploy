@@ -308,7 +308,7 @@ main() {
 
 	echo "deployment complete; restart to boot into ${NAME}"
 
-	umount -R ${MOUNT_PATH}
+	umount -R -l ${MOUNT_PATH}
 }
 
 
