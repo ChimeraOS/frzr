@@ -104,6 +104,7 @@ mkinitcpio -p \${NAME%%-*}
 EOF
     umount -l ${SUBVOL}/proc
     umount -l ${SUBVOL}/sys
+    mount --make-rslave ${SUBVOL}/dev
     umount -l ${SUBVOL}/dev
     else
        echo '
