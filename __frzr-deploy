@@ -15,12 +15,16 @@ get_img_url() {
           select(.state=="uploaded")
         ]')
 
-    if [ "$CHANNEL" == "testing" ]; then
-        result=$(echo $result | jq '[ .[] | select(.name|test("UNSTABLE")|not) ]')
-    elif [ "$CHANNEL" == "stable" ]; then
-        result=$(echo $result | jq '[ .[] | select(.prerelease==false) ]')
-    elif [ "$CHANNEL" != "unstable" ]; then
-        result=$(echo $result | jq "[ .[] | select(.url|contains(\"-${CHANNEL}_\")) ]")
+    # Filter channels by release naming conventions
+    if [ "$CHANNEL" == "stable" ]; then
+        # Check first for stable, this is the latest that have prerelease == false
+        result=$(echo ${result} | jq '[ .[] | select(.prerelease==false) ]')
+    elif [ "$CHANNEL" == "testing" ]; then
+        # Testing channel have prerelease = true and no other tags
+        result=$(echo ${result} | jq '[ .[] | select(.prerelease==true) | select(.name|test("\\[.*\\]")|not) ]')
+    else
+        # Match any release with CHANNEL as a tag (including unstable)
+        result=$(echo ${result} | jq "[ .[] | select(.prerelease==true) | select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ]")
     fi
 
     echo $result | jq 'first | .url' | sed 's/"//g'
