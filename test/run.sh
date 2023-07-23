@@ -26,14 +26,14 @@ check 'should select the system image asset'               $(cat test1.dat | get
 check 'should prioritize latest stable asset'               $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer testing asset'  $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test3a.dat | get_img_url unstable) 'chimeraos-1_0000001.img.tar.xz'
+check 'should select asset that is in `uploaded` state' $(cat test3a.dat | get_img_url stable) 'chimeraos-1_0000001.img.tar.xz'
 
 echo
 echo '==== testing channel'
 check 'should select the system image asset'               $(cat test1.dat | get_img_url testing) 'chimeraos-1_0000000.img.tar.xz'
 check 'should prioritize stable asset over older testing asset'  $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test3b.dat | get_img_url unstable) 'chimeraos-1_0000001.img.tar.xz'
+check 'should select asset that is in `uploaded` state' $(cat test3b.dat | get_img_url testing) 'chimeraos-1_0000001.img.tar.xz'
 
 echo
 echo '==== unstable channel'
