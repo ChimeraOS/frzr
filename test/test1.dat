@@ -21,5 +21,51 @@
         "browser_download_url": "sha256sum.txt"
       }
     ]
+  },
+  {
+    "tag_name": "2_0000000",
+    "name": "ChimeraOS 2 (0000000)",
+    "prerelease": true,
+    "created_at": "2022-05-07T03:31:40Z",
+    "assets": [
+      {
+        "name": "build_info.txt",
+        "state": "uploaded",
+        "browser_download_url": "build_info.txt"
+      },
+      {
+        "name": "chimeraos-2_0000000.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-2_0000000.img.tar.xz"
+      },
+      {
+        "name": "sha256sum.txt",
+        "state": "uploaded",
+        "browser_download_url": "sha256sum.txt"
+      }
+    ]
+  },
+  {
+    "tag_name": "3_0000000",
+    "name": "ChimeraOS 3 (0000000) [UNSTABLE]",
+    "prerelease": true,
+    "created_at": "2022-05-08T03:31:40Z",
+    "assets": [
+      {
+        "name": "build_info.txt",
+        "state": "uploaded",
+        "browser_download_url": "build_info.txt"
+      },
+      {
+        "name": "chimeraos-3_0000000.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-3_0000000.img.tar.xz"
+      },
+      {
+        "name": "sha256sum.txt",
+        "state": "uploaded",
+        "browser_download_url": "sha256sum.txt"
+      }
+    ]
   }
 ]
