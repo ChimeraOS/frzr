@@ -16,8 +16,12 @@ get_img_url() {
         ]')
 
     # Filter channels by release naming conventions
-    if [ "$CHANNEL" == "stable" ]; then
-        # Check first for stable, this is the latest that have prerelease == false
+    if [[ "$CHANNEL" =~ ^[0-9]+\-?[0-9]*$ ]] ; then
+        # Check first for explicit version numbers between stable releases
+        # Useful for downgrading
+        result=$(echo ${result} | jq "[ .[] | select(.prerelease==false) | select(.name|test(\" ${CHANNEL} \"))]")
+    elif [ "$CHANNEL" == "stable" ]; then
+        # Check for stable, this is the latest that have prerelease == false
         result=$(echo ${result} | jq '[ .[] | select(.prerelease==false) ]')
     elif [ "$CHANNEL" == "testing" ]; then
         # Testing channel have prerelease = true and no other tags

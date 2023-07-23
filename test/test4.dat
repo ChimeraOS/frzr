@@ -13,6 +13,19 @@
     ]
   },
   {
+    "tag_name": "1-1_0000011",
+    "name": "ChimeraOS 1-1 (0000011)",
+    "prerelease": false,
+    "created_at": "2021-01-01T10:00:00Z",
+    "assets": [
+      {
+        "name": "chimeraos-1-1_0000011.img.tar.xz",
+        "state": "uploaded",
+        "browser_download_url": "chimeraos-1-1_0000011.img.tar.xz"
+      }
+    ]
+  },
+  {
     "tag_name": "2_0000002",
     "name": "ChimeraOS 2 (0000002)",
     "prerelease": false,
