@@ -292,7 +292,7 @@ main() {
 	export NAME
 	
 	# Check if the FIRMWARE_OVERRIDE variable is set by the install media, if so enable firmware overrides
-	if [ -n ${FIRMWARE_OVERRIDE} ]; then
+	if [ -n "${FIRMWARE_OVERRIDE}" ]; then
 		echo "export USE_FIRMWARE_OVERRIDES=1" > ${MOUNT_PATH}/etc/device-quirks.conf
 	fi
 	
