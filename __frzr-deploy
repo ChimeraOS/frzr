@@ -316,6 +316,12 @@ main() {
 
 	echo "deployment complete; restart to boot into ${NAME}"
 
+	# Force to stable channel
+	REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
+	CHANNEL="stable"
+	echo "${REPO}/${CHANNEL}" > "${MOUNT_PATH}/source"
+	echo "Forced source to stable channel"
+
 	umount -R -l ${MOUNT_PATH}
 }
 
