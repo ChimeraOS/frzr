@@ -22,33 +22,29 @@ check() {
 echo
 echo '== get_img_url'
 echo '==== stable channel'
-check 'should select the system image asset in stable'               $(cat test1.dat | get_img_url stable) 'chimeraos-1_0000000.img.tar.xz'
-check 'should prioritize latest stable asset'               $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
+check 'should select the system image asset in stable'           $(cat test1.dat | get_img_url stable) 'chimeraos-1_0000000.img.tar.xz'
+check 'should prioritize latest stable asset'                    $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer testing asset'  $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat | get_img_url stable) 'chimeraos-1_0000004.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test3a.dat | get_img_url stable) 'chimeraos-1_0000001.img.tar.xz'
 
 echo
 echo '==== testing channel'
-check 'should select the system image asset in testing'               $(cat test1.dat | get_img_url testing) 'chimeraos-2_0000000.img.tar.xz'
-check 'should prioritize testing asset over newer stable asset'  $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000002.img.tar.xz'
-check 'should prioritize testing asset over newer unstable asset' $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000002.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test3b.dat | get_img_url testing) 'chimeraos-1_0000001.img.tar.xz'
+check 'should select the system image asset in testing'          $(cat test1.dat | get_img_url testing) 'chimeraos-1_0000000.img.tar.xz'
+check 'should prioritize stable asset over older testing asset'  $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
+check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
 
 echo
 echo '==== unstable channel'
-check 'should select the system image asset in unstable'               $(cat test1.dat | get_img_url unstable) 'chimeraos-3_0000000.img.tar.xz'
-check 'should prioritize unstable asset over newer testing asset'  $(cat test2.dat | get_img_url unstable) 'chimeraos-1_0000001.img.tar.xz'
-check 'should prioritize unstable asset over newer stable asset' $(cat test2.dat | get_img_url unstable) 'chimeraos-1_0000001.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test3c.dat | get_img_url unstable) 'chimeraos-1_0000001.img.tar.xz'
+check 'should select the system image asset in unstable'         $(cat test1.dat | get_img_url unstable) 'chimeraos-3_0000000.img.tar.xz'
+check 'should prioritize stable asset over older testing asset'  $(cat test2.dat | get_img_url unstable) 'chimeraos-1_0000004.img.tar.xz'
+check 'should prioritize stable asset over older unstable asset' $(cat test2.dat | get_img_url unstable) 'chimeraos-1_0000004.img.tar.xz'
 
 echo
 echo '==== direct'
-check 'should select newest version by default' $(cat test4.dat | get_img_url stable) 'chimeraos-2_0000002.img.tar.xz'
-check 'should be able to select older versions' $(cat test4.dat | get_img_url 1) 'chimeraos-1_0000001.img.tar.xz'
-check 'should be able to select older point versions' $(cat test4.dat | get_img_url 1-1) 'chimeraos-1-1_0000011.img.tar.xz'
-check 'should select latest matching asset' $(cat test4a.dat | get_img_url 1) 'chimeraos-1_0000002.img.tar.xz'
-check 'should select asset that is in `uploaded` state' $(cat test4b.dat | get_img_url 1) 'chimeraos-1_0000001.img.tar.xz'
+check 'should select newest version by default'                  $(cat test4.dat | get_img_url stable) 'chimeraos-2_0000002.img.tar.xz'
+check 'should be able to select older versions'                  $(cat test4.dat | get_img_url 1) 'chimeraos-1_0000001.img.tar.xz'
+check 'should be able to select older point versions'            $(cat test4.dat | get_img_url 1-1) 'chimeraos-1-1_0000011.img.tar.xz'
+check 'should select latest matching asset'                      $(cat test4a.dat | get_img_url 1) 'chimeraos-1_0000002.img.tar.xz'
 
 echo
 echo '== get_boot_cfg'

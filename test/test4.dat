@@ -1,9 +1,9 @@
 [
   {
     "tag_name": "1_0000001",
-    "name": "ChimeraOS 1 (0000001)",
+    "name": "ChimeraOS 1",
     "prerelease": false,
-    "created_at": "2021-01-01T00:00:00Z",
+    "published_at": "2021-01-01T00:00:00Z",
     "assets": [
       {
         "name": "chimeraos-1_0000001.img.tar.xz",
@@ -14,9 +14,9 @@
   },
   {
     "tag_name": "1-1_0000011",
-    "name": "ChimeraOS 1-1 (0000011)",
+    "name": "ChimeraOS 1-1",
     "prerelease": false,
-    "created_at": "2021-01-01T10:00:00Z",
+    "published_at": "2021-01-01T10:00:00Z",
     "assets": [
       {
         "name": "chimeraos-1-1_0000011.img.tar.xz",
@@ -27,9 +27,9 @@
   },
   {
     "tag_name": "2_0000002",
-    "name": "ChimeraOS 2 (0000002)",
+    "name": "ChimeraOS 2",
     "prerelease": false,
-    "created_at": "2022-01-02T00:00:00Z",
+    "published_at": "2022-01-02T00:00:00Z",
     "assets": [
       {
         "name": "chimeraos-2_0000002.img.tar.xz",

@@ -1,9 +1,9 @@
 [
   {
     "tag_name": "1_0000000",
-    "name": "ChimeraOS 1 (0000000)",
+    "name": "ChimeraOS 1",
     "prerelease": false,
-    "created_at": "2022-05-05T03:31:40Z",
+    "published_at": "2022-05-05T03:31:40Z",
     "assets": [
       {
         "name": "build_info.txt",
@@ -26,7 +26,7 @@
     "tag_name": "2_0000000",
     "name": "ChimeraOS 2 (0000000)",
     "prerelease": true,
-    "created_at": "2022-05-07T03:31:40Z",
+    "published_at": "2022-05-07T03:31:40Z",
     "assets": [
       {
         "name": "build_info.txt",
@@ -49,7 +49,7 @@
     "tag_name": "3_0000000",
     "name": "ChimeraOS 3 (0000000) [UNSTABLE]",
     "prerelease": true,
-    "created_at": "2022-05-08T03:31:40Z",
+    "published_at": "2022-05-08T03:31:40Z",
     "assets": [
       {
         "name": "build_info.txt",
