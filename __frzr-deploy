@@ -39,7 +39,7 @@ get_boot_cfg() {
 	local amd_ucode=${2}
 	local intel_ucode=${3}
 	local additional_arguments=${4}
-	
+
 echo "title ${version}
 linux /${version}/vmlinuz-linux
 ${amd_ucode}
@@ -55,7 +55,7 @@ get_deployment_to_delete() {
 	local deployment_path=${3}
 
 	local TO_BOOT=`get_next_boot_deployment ${current_version} ${boot_cfg_path}`
-		
+
 	ls -1 ${deployment_path} | grep -v ${current_version} | grep -v ${TO_BOOT} | head -1 || echo
 }
 
@@ -116,7 +116,7 @@ main() {
 				;;
 		esac
 	done
-	
+
 	if [ ! -d /sys/firmware/efi/efivars ]; then
 		echo "Legacy BIOS installs are not supported. Aborting."
 		exit 1
@@ -145,7 +145,7 @@ main() {
 
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
-	
+
 	BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
 	mkdir -p ${MOUNT_PATH}/boot/loader/entries
 
@@ -173,11 +173,11 @@ main() {
 	else
 		echo "WARNING: source wasn't specified"
 	fi
-	
+
 	if [ "${local_install}" == true ]; then
 	        mkdir tmp_source
 	        mount -o rw -L FRZR_UPDATE /root/tmp_source
-		FILE_NAME=$(basename /root/tmp_source/*.img.tar.xz*)	
+		FILE_NAME=$(basename /root/tmp_source/*.img.tar.xz*)
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="/root/tmp_source/${FILE_NAME}"
@@ -214,7 +214,7 @@ main() {
 		CHECKSUM=$(curl --http1.1 -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
-		
+
 		if [ -e ${SUBVOL} ]; then
 			echo "${NAME} already installed; aborting"
 			exit 7 # let Steam know there is no update available
@@ -256,7 +256,7 @@ main() {
 	else
 		tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
 	fi
-	
+
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
@@ -293,17 +293,17 @@ main() {
 			unset -f post_install
 		done
 	fi
-	
+
 	# Export variables to be used by child processes for frzr-tweaks and frzr-initramfs
 	export MOUNT_PATH
 	export SUBVOL
 	export NAME
-	
+
 	# Check if the FIRMWARE_OVERRIDE variable is set by the install media, if so enable firmware overrides
 	if [ -n ${FIRMWARE_OVERRIDE} ]; then
 		echo "export USE_FIRMWARE_OVERRIDES=1" > ${MOUNT_PATH}/etc/device-quirks.conf
 	fi
-	
+
 	# Run frzr-tweaks to execute the device-quirks to be supplied by the deployed images
 	frzr-tweaks
 
