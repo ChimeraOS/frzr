@@ -27,17 +27,16 @@ DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${devi
 REPAIR=false
 
 if (lsblk -o label ${DISK} | grep -q frzr_efi); then
-    echo "Installation found"
-    
-    if (whiptail --yesno "WARNING: $DISK appears to have a another system deployed, would you like to repair the install?" 10 50); then
-	echo "User chose to repair installation"
-	REPAIR=true
+    echo "Existing installation found"
+
+    if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
+        echo "User chose to do a repair install"
+        REPAIR=true
     else
-    	echo "Doing a complete install"
+        echo "User chose to do a clean install"
     fi
-    	
 else
-    echo "Installation not found"
+    echo "Existing installation not found"
 fi
 
 
