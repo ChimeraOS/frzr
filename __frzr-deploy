@@ -41,12 +41,12 @@ get_img_url() {
         result=$stable_download_url
     elif [ "$CHANNEL" == "testing" ]; then
         # Testing channel have prerelease = true and no other tags
-				testing_release_date=$(echo "${result}" | jq -r '[ .[] |
-					select(.prerelease==false) |
-					select(.name|test("\\[.*\\]")|not) ] |
-					first |
-					.published_at'
-				)
+		testing_release_date=$(echo "${result}" | jq -r '[ .[] |
+			select(.prerelease==true) |
+			select(.name|test("\\[.*\\]")|not) ] |
+			first |
+			.published_at'
+		)
         testing_url=$(echo "${result}" | jq -r '[ .[] |
 					select(.prerelease==true) |
 					select(.name|test("\\[.*\\]")|not) ] |
@@ -58,7 +58,7 @@ get_img_url() {
 				if [ $(date -d $testing_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
 					result=$stable_download_url
 				else
-					result=testing_url
+					result=$testing_url
 				fi
     else
         # Match any release with CHANNEL as a tag (including unstable)
