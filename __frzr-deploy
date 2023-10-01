@@ -41,46 +41,52 @@ get_img_url() {
 		result=$stable_download_url
 	elif [ "$CHANNEL" == "testing" ]; then
 		# Testing channel have prerelease = true and no other tags
-		testing_release_date=$(echo "${result}" | jq -r '[ .[] |
+		if testing_release_date=$(echo "${result}" | jq -er '[ .[] |
 			select(.prerelease==true) |
 			select(.name|test("\\[.*\\]")|not) ] |
 			first |
 			.published_at'
-		)
-		testing_url=$(echo "${result}" | jq -r '[ .[] |
-					select(.prerelease==true) |
-					select(.name|test("\\[.*\\]")|not) ] |
-					first |
-					.assets[] |
-					select(.browser_download_url | test("img")) |
-					.browser_download_url'
-				)
-		if [ $(date -d $testing_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
-			result=$stable_download_url
+			); then
+			testing_url=$(echo "${result}" | jq -r '[ .[] |
+						select(.prerelease==true) |
+						select(.name|test("\\[.*\\]")|not) ] |
+						first |
+						.assets[] |
+						select(.browser_download_url | test("img")) |
+						.browser_download_url'
+					)
+			if [ $(date -d $testing_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
+				result=$stable_download_url
+			else
+				result=$testing_url
+			fi
 		else
-			result=$testing_url
+			result=$stable_download_url
 		fi
 	else
 		# Match any release with CHANNEL as a tag (including unstable)
 		result=$(echo ${result} | jq "[ .[] | select(.prerelease==true) | select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ]")
-				unstable_release_date=$(echo "${result}" | jq -r "[ .[] |
+			if unstable_release_date=$(echo "${result}" | jq -er "[ .[] |
 					select(.prerelease==true) |
 					select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
 					first |
 					.published_at"
-				)
-		unstable_url=$(echo "${result}" | jq -r "[ .[] |
-					select(.prerelease==true) |
-					select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
-					first |
-					.assets[] |
-					select(.browser_download_url | test(\"img\")) |
-					.browser_download_url"
-				)
-		if [ $(date -d $unstable_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
-			result=$stable_download_url
+				); then
+			unstable_url=$(echo "${result}" | jq -r "[ .[] |
+						select(.prerelease==true) |
+						select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
+						first |
+						.assets[] |
+						select(.browser_download_url | test(\"img\")) |
+						.browser_download_url"
+					)
+			if [ $(date -d $unstable_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
+				result=$stable_download_url
+			else
+				result=$unstable_url
+			fi
 		else
-			result=$unstable_url
+			result=$stable_download_url
 		fi
 	fi
 
