@@ -7,7 +7,7 @@ get_img_url() {
 	CHANNEL=$1
 
 	# Order by creation date in reverse
-	result=$(jq 'sort_by(.published_at) | reverse')
+	result=$(jq 'sort_by(.created_at) | reverse')
 
 	# Remove entries which have not been completed uploading
 	result=$(echo "${result}" | jq 'del(.[] | select(.assets[].state != "uploaded"))')
@@ -16,7 +16,7 @@ get_img_url() {
 	stable_release_date=$(echo "${result}" | jq -r '[ .[] |
 		select(.prerelease==false) ] |
 		first |
-		.published_at'
+		.created_at'
 	)
 	# Check for stable url, this is the latest that have prerelease == false
 	stable_download_url=$(echo "${result}" | jq -r '[ .[] |
@@ -48,7 +48,7 @@ get_img_url() {
 			select(.prerelease==true) |
 			select(.name|test("\\[.*\\]")|not) ] |
 			first |
-			.published_at'
+			.created_at'
 			); then
 			testing_url=$(echo "${result}" | jq -r '[ .[] |
 						select(.prerelease==true) |
@@ -73,7 +73,7 @@ get_img_url() {
 					select(.prerelease==true) |
 					select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
 					first |
-					.published_at"
+					.created_at"
 				); then
 			unstable_url=$(echo "${result}" | jq -r "[ .[] |
 						select(.prerelease==true) |
