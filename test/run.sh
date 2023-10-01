@@ -29,7 +29,7 @@ check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat
 
 echo
 echo '==== testing channel'
-check 'should select the system image asset in testing'          $(cat test1.dat | get_img_url testing) 'chimeraos-1_0000000.img.tar.xz'
+check 'should select the system image asset in testing'          $(cat test1.dat | get_img_url testing) 'chimeraos-2_0000000.img.tar.xz'
 check 'should prioritize stable asset over older testing asset'  $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
 check 'should prioritize stable asset over newer unstable asset' $(cat test2.dat | get_img_url testing) 'chimeraos-1_0000004.img.tar.xz'
 
