@@ -9,6 +9,9 @@ get_img_url() {
 	# Order by creation date in reverse
 	result=$(jq 'sort_by(.published_at) | reverse')
 
+	# Remove entries which have not been completed uploading
+	result=$(echo "${result}" | jq 'del(.[] | select(.assets[].state != "uploaded"))')
+
 	# Always check for stable date
 	stable_release_date=$(echo "${result}" | jq -r '[ .[] |
 		select(.prerelease==false) ] |
