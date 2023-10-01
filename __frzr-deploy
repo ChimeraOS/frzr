@@ -100,13 +100,14 @@ get_boot_cfg() {
 	local version=${1}
 	local amd_ucode=${2}
 	local intel_ucode=${3}
-	local additional_arguments=${4}
+	local kernel_package=${4}
+	local additional_arguments=${5}
 
 echo "title ${version}
-linux /${version}/vmlinuz-linux
+linux /${version}/vmlinuz-${kernel_package}
 ${amd_ucode}
 ${intel_ucode}
-initrd /${version}/initramfs-linux.img
+initrd /${version}/initramfs-${kernel_package}.img
 options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}"
 
 }
@@ -320,8 +321,8 @@ main() {
 	fi
 
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
-	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/vmlinuz-linux* ${MOUNT_PATH}/boot/${NAME}
+	cp ${SUBVOL}/boot/initramfs-linux*.img ${MOUNT_PATH}/boot/${NAME}
 
 	AMD_UCODE=""
 	if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
@@ -340,7 +341,16 @@ main() {
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 
-	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	for KERNELPATH in "${SUBVOL}"/etc/mkinitcpio.d/linux*.preset ; 
+	do
+		KERNEL="$(basename $KERNELPATH .preset)"
+		BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr-${KERNEL}.conf"
+		get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${KERNEL}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	done
+
+	# Only expect one kernel in the image. So copy the last created
+	echo "Copying systemd-boot entry..."
+	cp -v "${BOOT_CFG}" "${MOUNT_PATH}/boot/loader/entries/frzr.conf"
 	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	# Check if there are migrations available

@@ -50,7 +50,7 @@ check 'should select latest matching asset'                      $(cat test4a.da
 
 echo
 echo '== get_boot_cfg'
-check 'should return expected boot config' "$(get_boot_cfg '12_abcdef' 'initrd /12_abcdef/amd-ucode.img' 'initrd /12_abcdef/intel-ucode.img' 'ibt=off split_lock_detect=off')" \
+check 'should return expected boot config' "$(get_boot_cfg '12_abcdef' 'initrd /12_abcdef/amd-ucode.img' 'initrd /12_abcdef/intel-ucode.img' 'linux' 'ibt=off split_lock_detect=off')" \
 'title 12_abcdef
 linux /12_abcdef/vmlinuz-linux
 initrd /12_abcdef/amd-ucode.img
