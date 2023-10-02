@@ -49,10 +49,10 @@ check 'should handle non existing stable channel'                   $(cat test6.
 
 echo
 echo '==== direct'
-check 'should select newest version by default'                  $(cat test4.dat | get_img_url stable) 'chimeraos-2_0000002.img.tar.xz'
-check 'should be able to select older versions'                  $(cat test4.dat | get_img_url 1) 'chimeraos-1_0000001.img.tar.xz'
-check 'should be able to select older point versions'            $(cat test4.dat | get_img_url 1-1) 'chimeraos-1-1_0000011.img.tar.xz'
-check 'should select latest matching asset'                      $(cat test4a.dat | get_img_url 1) 'chimeraos-1_0000002.img.tar.xz'
+check 'should select newest version by default'                  $(cat test4.dat  | get_img_url stable) 'chimeraos-2_0000002.img.tar.xz'
+check 'should be able to select older versions'                  $(cat test4.dat  | get_img_url 1)      'chimeraos-1_0000001.img.tar.xz'
+check 'should be able to select older point versions'            $(cat test4.dat  | get_img_url 1-1)    'chimeraos-1-1_0000011.img.tar.xz'
+check 'should select latest matching asset'                      $(cat test4a.dat | get_img_url 1)      'chimeraos-1_0000002.img.tar.xz'
 
 echo
 echo '== get_boot_cfg'
