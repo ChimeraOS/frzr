@@ -13,19 +13,25 @@ get_img_url() {
 	result=$(echo "${result}" | jq 'del(.[] | select(.assets[].state != "uploaded"))')
 
 	# Always check for stable date
-	stable_release_date=$(echo "${result}" | jq -r '[ .[] |
-		select(.prerelease==false) ] |
-		first |
-		.created_at'
-	)
-	# Check for stable url, this is the latest that have prerelease == false
-	stable_download_url=$(echo "${result}" | jq -r '[ .[] |
-		select(.prerelease==false) ] |
-		first |
-		.assets[] |
-		select(.browser_download_url | test("img")) |
-		.browser_download_url'
-	)
+	if stable_release_date=$(echo "${result}" | jq -er '[ .[] |
+			select(.prerelease==false) ] |
+			first |
+			.created_at'
+		); then
+		# Check for stable url, this is the latest that have prerelease == false
+		stable_download_url=$(echo "${result}" | jq -r '[ .[] |
+			select(.prerelease==false) ] |
+			first |
+			.assets[] |
+			select(.browser_download_url | test("img")) |
+			.browser_download_url'
+		)
+	else
+		# No stable channel found, pick some (old) values
+		# For testing/ channel selection
+		stable_release_date="1970-01-01T00:00:00Z"
+		stable_download_url=""
+	fi
 
 
 	# Filter channels by release naming conventions
