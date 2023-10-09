@@ -1,7 +1,7 @@
 [
   {
     "tag_name": "1_0000002",
-    "name": "ChimeraOS 1 (0000002)",
+    "name": "ChimeraOS 1",
     "prerelease": false,
     "created_at": "2022-01-01T00:00:00Z",
     "assets": [
@@ -14,7 +14,7 @@
   },
   {
     "tag_name": "1_0000001",
-    "name": "ChimeraOS 1 (0000001)",
+    "name": "ChimeraOS 1",
     "prerelease": false,
     "created_at": "2021-01-01T00:00:00Z",
     "assets": [
@@ -27,7 +27,7 @@
   },
   {
     "tag_name": "2_0000002",
-    "name": "ChimeraOS 2 (0000002)",
+    "name": "ChimeraOS 2",
     "prerelease": false,
     "created_at": "2022-01-01T00:00:00Z",
     "assets": [
