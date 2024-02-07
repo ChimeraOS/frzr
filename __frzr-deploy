@@ -117,6 +117,23 @@ options root=LABEL=frzr_root rw rootflags=subvol=deployments/${version} quiet sp
 
 }
 
+get_deployment_slot() {
+	local current_version=${1}
+	local slot_A_path=${2}
+	local slot_B_path=${3}
+	if [ -f "${slot_A_path}" ] && grep "^title" "${slot_A_path}" > /dev/null; then
+		SLOT_A=`grep ^title ${slot_A_path} | sed 's/title //'`
+	fi
+	if [ -f "${slot_B_path}" ] && grep "^title" "${slot_B_path}" > /dev/null; then
+		SLOT_B=`grep ^title ${slot_B_path} | sed 's/title //'`
+	fi
+	if [ "$SLOT_A" == "$current_version" ] ; then
+		echo "slot-A"
+	elif [ "$SLOT_B" == "$current_version" ] ; then
+		echo "slot-B"
+	fi
+}
+
 get_deployment_to_delete() {
 	local current_version=${1}
 	local boot_cfg_path=${2}
@@ -214,8 +231,12 @@ main() {
 	DEPLOY_PATH=${MOUNT_PATH}/deployments
 	mkdir -p ${DEPLOY_PATH}
 
-	BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
+	BOOT_CFG_SLOT_A="${MOUNT_PATH}/boot/loader/entries/frzr-slot-A.conf"
+	BOOT_CFG_SLOT_B="${MOUNT_PATH}/boot/loader/entries/frzr-slot-B.conf"
 	mkdir -p ${MOUNT_PATH}/boot/loader/entries
+
+	# default to no slot
+	SLOT=""
 
 	# delete deployments under these conditions:
 	# - we are currently running inside a frzr deployment (i.e. not during install)
@@ -223,6 +244,8 @@ main() {
 	# - the deployment is not configured to be run on next boot
 	if frzr-release > /dev/null; then
 		CURRENT=`frzr-release`
+		SLOT=`get_deployment_slot ${CURRENT} ${BOOT_CFG_SLOT_A} ${BOOT_CFG_SLOT_B}`
+		BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr-${SLOT}.conf"
 		TO_DELETE=`get_deployment_to_delete ${CURRENT} ${BOOT_CFG} ${DEPLOY_PATH}`
 
 		if [ ! -z ${TO_DELETE} ]; then
@@ -366,8 +389,21 @@ main() {
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
 
+	if [ ! -z "$SLOT" ] ; then
+		# Copy current running config to other slot
+		if [ "${BOOT_CFG}" == "${BOOT_CFG_SLOT_A}" ] ; then
+			cp ${BOOT_CFG_SLOT_A} ${BOOT_CFG_SLOT_B}
+		elif [ "${BOOT_CFG}" == "${BOOT_CFG_SLOT_B}" ] ; then
+			cp ${BOOT_CFG_SLOT_B} ${BOOT_CFG_SLOT_A}
+		fi
+	else
+		# No slot seems booted, write to slot A
+		BOOT_CFG="${BOOT_CFG_SLOT_A}"
+		SLOT="slot-A"
+	fi
+
 	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
-	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
+	echo "default frzr-$SLOT.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	# Check if there are migrations available
 	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
