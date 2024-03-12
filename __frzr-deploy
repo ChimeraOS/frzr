@@ -432,7 +432,7 @@ main() {
 	if grep -q "microcode" "/etc/mkinitcpio.conf"; then
 		echo "microcode hook present: will skip systemd-boot initrd."
 
-		AMD_UCODE="# intel-ucode in initramfs"
+		AMD_UCODE="# amd-ucode in initramfs"
 		INTEL_UCODE="# intel-ucode in initramfs"
 	else
 		echo "microcode hook not found: will use systemd-bood initrd."
