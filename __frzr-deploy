@@ -337,7 +337,7 @@ main() {
 
 		AMD_UCODE="# intel-ucode in initramfs"
 		INTEL_UCODE="# intel-ucode in initramfs"
-	elif
+	else
 		echo "microcode hook not found: will use systemd-bood initrd.\n"
 
 		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
