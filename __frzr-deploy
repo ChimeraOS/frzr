@@ -329,36 +329,6 @@ main() {
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/initramfs-linux.img ${MOUNT_PATH}/boot/${NAME}
 
-	AMD_UCODE="# missing intel-ucode"
-	INTEL_UCODE="# missing intel-ucode"
-
-	if grep -q "microcode" "${MOUNT_PATH}/etc/mkinitcpio.conf"; then
-		echo "microcode hook present: will skip systemd-boot initrd."
-
-		AMD_UCODE="# intel-ucode in initramfs"
-		INTEL_UCODE="# intel-ucode in initramfs"
-	else
-		echo "microcode hook not found: will use systemd-bood initrd."
-
-		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
-			cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
-			AMD_UCODE="initrd /${NAME}/amd-ucode.img"
-		fi
-		
-		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
-			cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
-			INTEL_UCODE="initrd /${NAME}/intel-ucode.img"
-		fi
-	fi
-
-	ADDITIONAL_ARGUMENTS=""
-	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
-		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
-	fi
-
-	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
-	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
-
 	# Check if there are migrations available
 	if compgen -G "${SUBVOL}"/usr/lib/frzr.d/*.migration > /dev/null ; then
 		for m in "${SUBVOL}"/usr/lib/frzr.d/*.migration ;
@@ -387,6 +357,37 @@ main() {
 
 	# Run frzr-initramfs to create mkinicpio.conf and build an initramfs
 	frzr-initramfs
+
+	# now that the initramfs has been built determine if that includes microcode
+	AMD_UCODE="# missing intel-ucode"
+	INTEL_UCODE="# missing intel-ucode"
+	if grep -q "microcode" "/etc/mkinitcpio.conf"; then
+		echo "microcode hook present: will skip systemd-boot initrd."
+
+		AMD_UCODE="# intel-ucode in initramfs"
+		INTEL_UCODE="# intel-ucode in initramfs"
+	else
+		echo "microcode hook not found: will use systemd-bood initrd."
+
+		if [ -e ${SUBVOL}/boot/amd-ucode.img ] ; then
+			cp ${SUBVOL}/boot/amd-ucode.img ${MOUNT_PATH}/boot/${NAME}
+			AMD_UCODE="initrd /${NAME}/amd-ucode.img"
+		fi
+		
+		if [ -e ${SUBVOL}/boot/intel-ucode.img ] ; then
+			cp ${SUBVOL}/boot/intel-ucode.img ${MOUNT_PATH}/boot/${NAME}
+			INTEL_UCODE="initrd /${NAME}/intel-ucode.img"
+		fi
+	fi
+
+	ADDITIONAL_ARGUMENTS=""
+	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
+		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
+	fi
+
+	# write down the kernel cmdline as the last step: shall a blackout happen the prevous deployment will get booted
+	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
+	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
