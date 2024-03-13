@@ -393,6 +393,7 @@ main() {
 		fi
 	else
 		# No slot seems booted, write to slot A
+		echo "Warning: no slot currently set, will start from A"
 		BOOT_CFG="${BOOT_CFG_SLOT_A}"
 		SLOT="slot-A"
 	fi
@@ -455,7 +456,7 @@ main() {
 
 	# write down the kernel cmdline as the last step: shall a blackout happen the prevous deployment will get booted
 	get_boot_cfg "${NAME}" "${AMD_UCODE}" "${INTEL_UCODE}" "${ADDITIONAL_ARGUMENTS}" > ${BOOT_CFG}
-	echo "default frzr.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
+	echo "default frzr-$SLOT.conf" > ${MOUNT_PATH}/boot/loader/loader.conf
 
 	rm -f ${MOUNT_PATH}/*.img.*
 
