@@ -97,7 +97,6 @@ if [ -d /frzr_root ]; then
 echo '
 ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/vmlinuz-linux"
-ALL_microcode=(/boot/*-ucode.img)
 
 PRESETS="default"
 
@@ -115,7 +114,6 @@ EOF
        echo '
 ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/'$BUILD'/vmlinuz-linux"
-ALL_microcode=(/boot/'$BUILD'/*-ucode.img)
 
 PRESETS="default"
 
