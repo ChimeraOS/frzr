@@ -341,7 +341,19 @@ main() {
 		INTEL_UCODE="initrd /${NAME}/intel-ucode.img"
 	fi
 
-	ADDITIONAL_ARGUMENTS=""
+	RESUME_ARGS=""
+	if [ -f "/home/swapfile" ]; then
+		RESUME_OFFSET=$(btrfs inspect-internal map-swapfile -r /home/swapfile)
+		
+		RESUME_DISK=$(mount | grep "/home" | awk '{print $1}')
+		PART_UUID=$(blkid -o value -s UUID ${RESUME_DISK})
+
+		RESUME_ARGS="resume=UUID=${PART_UUID} resume_offset=${RESUME_OFFSET}"
+
+		echo "Add resume hook to boot boot parameters: ${RESUME_ARGS}"
+	fi
+
+	ADDITIONAL_ARGUMENTS="${RESUME_ARGS}"
 	if [ -e ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf ] ; then
 		ADDITIONAL_ARGUMENTS="$ADDITIONAL_ARGUMENTS $(cat ${SUBVOL}/usr/lib/frzr.d/bootconfig.conf)"
 	fi
