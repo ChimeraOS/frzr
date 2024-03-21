@@ -367,6 +367,31 @@ main() {
 		echo "Unsupported file format: ${IMG_FILE}"
 	fi
 
+	if [ -d "${SUBVOL}/etc" ]; then
+		echo "System image ${NAME} will use the /etc overlay"
+	else
+		echo "System image ${NAME} will use an /etc subvolume"
+
+		btrfs subvolume create "${SUBVOL}/etc"
+
+		btrfs subvolume create "${SUBVOL}/snapshots"
+
+		btrfs subvolume create "${SUBVOL}/snapshots/etc"
+
+		# copy every stock /etc (that has been moved to /usr/etc) file to the actual /etc
+		cp -a ${SUBVOL}/usr/etc/** ${SUBVOL}/etc/
+
+		# copy the machine-id file: this was created by systemd the very first boot and identify the machine:
+		# changing this will also make ssh warn about machine not matching.
+		if [ -f "/etc/machine-id" ]; then
+			cp -a /etc/machine-id ${SUBVOL}/etc/
+		else
+			echo "WARNING: no /etc/machine-id -- new machine-id will be regenerated at next boot"
+		fi
+
+		# Make a snapshot of /etc so that this state can be restored
+		btrfs subvolume snapshot ${SUBVOL}/etc ${SUBVOL}/snapshots/etc/0
+	fi
 
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
