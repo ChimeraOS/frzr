@@ -337,7 +337,7 @@ main() {
 		btrfs subvolume create "${SUBVOL}/snapshots/etc"
 
 		# copy every stock /etc (that has been moved to /usr/etc) file to the actual /etc
-		cp -a ${SUBVOL}/usr/etc/** ${SUBVOL}/etc/
+		cp -a ${SUBVOL}/usr/etc/* ${SUBVOL}/etc/
 
 		# copy the machine-id file: this was created by systemd the very first boot and identify the machine:
 		# changing this will also make ssh warn about machine not matching.
