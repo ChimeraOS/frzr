@@ -330,9 +330,17 @@ main() {
 	else
 		echo "System image ${NAME} will use an /etc subvolume"
 
+		# unlock the subvolume to be able to create a nested subvolume
+		btrfs property set -f -ts "${SUBVOL}/" ro false
+
+		# create the nested subvolume for /etc
 		btrfs subvolume create "${SUBVOL}/etc"
 
+		# create the nested subvolume for /snapshots
 		btrfs subvolume create "${SUBVOL}/snapshots"
+
+		# re-lock the subvolume. ${SUBVOL}/etc will remain R/W
+		btrfs property set -f -ts "${SUBVOL}/" ro true
 
 		btrfs subvolume create "${SUBVOL}/snapshots/etc"
 
