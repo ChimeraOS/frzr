@@ -254,6 +254,16 @@ main() {
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE=${FRZR_SOURCE}
+	elif [[ "$FRZR_SOURCE" == *".img.xz" ]]; then
+		FILE_NAME=$(basename ${FRZR_SOURCE})
+		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+		SUBVOL="${DEPLOY_PATH}/${NAME}"
+		IMG_FILE=${FRZR_SOURCE}
+	elif [[ "$FRZR_SOURCE" == *".img.zst" ]]; then
+		FILE_NAME=$(basename ${FRZR_SOURCE})
+		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+		SUBVOL="${DEPLOY_PATH}/${NAME}"
+		IMG_FILE=${FRZR_SOURCE}
 	elif [[ "$FRZR_SOURCE" == *".img" ]]; then
 		FILE_NAME=$(basename ${FRZR_SOURCE})
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
@@ -321,9 +331,19 @@ main() {
 
 	if [[ "${IMG_FILE##*.}" == "img" ]]; then
 		btrfs receive --quiet ${DEPLOY_PATH} < ${IMG_FILE}
+	elif [[ "${IMG_FILE##*.}" == "zst" ]]; then
+		zstd -d -c ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+	elif [[ "${IMG_FILE##*.}" == "xz" ]]; then
+		if [[ "${IMG_FILE}" == *".tar.xz" ]]; then
+			tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+		else
+			xz -dc ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+		fi
 	else
-		tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+		# Handle other cases or provide an error message
+		echo "Unsupported file format: ${IMG_FILE}"
 	fi
+
 
 	mkdir -p ${MOUNT_PATH}/boot/${NAME}
 	cp ${SUBVOL}/boot/vmlinuz-linux ${MOUNT_PATH}/boot/${NAME}
