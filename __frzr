@@ -1,0 +1,863 @@
+#! /bin/bash
+
+# All global variables and signals are sourced from __frzr-envars
+source "${BASH_SOURCE%/*}/__frzr-envars"
+
+frzr_status() {
+    # Output frzr status tracker using the JSON format
+    cat <<EOF
+{
+    "Signals": {
+        "Task MSG": "$TASK_MSG",
+        "Task Tracker": "$TASK_TRACKER",
+        "Task Error": "$TASK_ERROR",
+        "Task Error MSG": "$TASK_ERROR_MSG",
+        "Task Warning": "$TASK_WARNING",
+        "Task Warning MSG": "$TASK_WARNING_MSG",
+        "Task Progress": "$TASK_PROGRESS",
+    },
+    "Globals": {
+        "Target": "$TARGET",
+        "Local Install": "$LOCAL_INSTALL",
+        "Repair Install": "$REPAIR_INSTALL",
+        "Show UI": "$SHOW_UI",
+        "EFI Path": "$EFI_MOUNT_PATH",
+        "Mount Path": "$MOUNT_PATH",
+        "SUBVOL": "$SUBVOL",
+        "Deploy Path": "$DEPLOY_PATH",
+        "Frzr Check Update": "$FRZR_CHECK_UPDATE",
+        "Frzr Params": "$FRZR_PARAMS",
+        "File Name": "$FILE_NAME",
+        "IMG Name": "$IMG_NAME",
+        "Base URL": "$BASE_URL",
+        "Repo": "$REPO",
+        "Release URL": "$RELEASES_URL",
+        "Expected Checksum": "$EXPECTED_CHECKSUM",
+        "Actual Checksum": "$ACTUAL_CHECKSUM",
+        "Channel": "$CHANNEL",
+        "State Machine State": "$STATE"
+    }
+}
+EOF
+}
+
+# Write tracker file when frzr exits unexpectedly
+trap frzr_status SIGINT SIGTERM ERR
+
+write_tracker_file() {
+	local running_user=$(whoami)
+	if [ ! -f "${TRACKER_FILE_PATH}" ]; then
+		touch "${TRACKER_FILE_PATH}"
+		chown :frzr "${TRACKER_FILE_PATH}"
+		chmod g+w "${TRACKER_FILE_PATH}"
+	fi
+
+	frzr_status > "${TRACKER_FILE_PATH}"
+}
+
+send_data(){
+	sleep 1
+	write_tracker_file
+}
+
+frzr_check_bootenv() {
+    if [ -d /tmp/frzr_root ]; then
+        UPGRADE=0
+    else
+        UPGRADE=1
+    fi
+}
+
+# Perform required mounts to have a working chroot environment
+# $1 the rootfs to be chrooted
+# stdout OK, an error otherwise
+frzr_mount_chroot() {
+    local CHROOT_PATH=$1
+    
+    if mount -t proc /proc "${CHROOT_PATH}/proc"; then
+		if mount -t sysfs /sys "${CHROOT_PATH}/sys"; then
+			if mount --rbind /dev "${CHROOT_PATH}/dev"; then
+				echo "OK"
+			else
+				echo "ERROR: Could not bind-mount /dev to '${CHROOT_PATH}/dev'"
+			fi
+		else
+			echo "ERROR: Could not mount sysfs to '${CHROOT_PATH}/sys'"
+		fi
+	else
+		echo "ERROR: Could not mount proc to '${CHROOT_PATH}/proc'"
+	fi
+}
+
+frzr_exec_chroot() {
+	local CHROOT_PATH=$1
+    local CHROOT_CMD=$2
+
+	chroot ${CHROOT_PATH} /bin/bash <<EOF
+    ${CHROOT_CMD}
+EOF
+}
+
+frzr_umount_chroot() {
+    local CHROOT_PATH=$1
+
+    umount -l "${CHROOT_PATH}/proc"
+    umount -l "${CHROOT_PATH}/sys"
+    mount --make-rslave "${CHROOT_PATH}/dev"
+    umount -l "${CHROOT_PATH}/dev"
+}
+
+# Get the UUID of the desk containing the given directory
+# $1 the directory
+# stdout UUID (compatible with /dev/disk/by-uuid/), an error otherwise
+get_uuid() {
+	local dir=$1
+
+	if [ -d "${dir}" ]; then
+		local subcmd=$(df -P "${dir}" | tail -n1 | cut -d' ' -f1)
+
+		if [ "$subcmd" = "-" ]; then
+			subcmd=$(findmnt --target "${dir}" | grep "/dev" | tail -n1 | cut -d' ' -f2 )
+		fi
+
+		local possible_uuid=$(lsblk -n -o UUID "${subcmd}")
+		local filtered_uuid=$(echo "${possible_uuid}" | grep -E '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
+
+		if [ -z "$filtered_uuid" ]; then
+			echo "ERROR: Cannot fetch the UUID for directory '${dir}'"
+		else
+			echo "${filtered_uuid}"
+		fi
+	else
+		echo "ERROR: '${dir}' is not a valid directory"
+	fi
+}
+
+# Check if the given directory is a btrfs subvolume
+# $1 the directory
+# return 0 if the directory is a subvolume, 1 otherwise
+is_btrfs_subvolume() {
+	local dir=$1
+	[ "$(stat -f --format="%T" "$dir")" == "btrfs" ] || return 1
+	inode="$(stat --format="%i" "$dir")"
+	case "$inode" in
+	2 | 256)
+		return 0
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+# Simply delete a btrfs subvolume.
+# PRE=the subvolume exists and have zero nested subvolumes
+# POST=the subvolume do not exists
+# $1 the subvolume to be deleted
+# stdout "OK" on success, an error string otherwise
+btrfs_subvolume_simple_delete() {
+	local dir=${1}
+
+	if [ -d "${dir}" ]; then
+		if is_btrfs_subvolume "${dir}"; then
+			if btrfs subvolume delete "${dir}"; then
+				echo "OK"
+			else
+				echo "ERROR: Could not delete subvolume '${dir}'"
+			fi
+		else
+			echo "ERROR: Directory '${dir}' is not a valid btrfs subvolume"
+		fi
+	else
+		echo "ERROR: Directory '${dir}' does not exist"
+	fi
+}
+
+# Recursively delete a btrfs subvolume, this function is highly unsafe and therefore subvolumes to be deleted
+# are filtered by a grep argument.
+# PRE=the subvolume exists and have one or more nested subvolumes
+# POST=the subvolume and all nested subvolumes do not exists
+# $1 the subvolume to be deleted
+# $2 a string that has to be contained in the subvolume path to be deleted
+# stdout "OK" on success, an error string otherwise
+btrfs_filtered_subvolume_recursive_delete() {
+	local dir=${1}
+	local expr=${2}
+
+	local error=""
+
+	if [ -d "${dir}" ]; then
+		if is_btrfs_subvolume "${dir}"; then
+			local set_rw_res=$(btrfs_subvolume_set_rw "${subvol_path}")
+			if echo "${set_rw_res}" | grep -Fq "ERROR"; then
+				echo "ERROR: Could not set subvolume '"${dir}"' read-write: ${set_rw_res}"
+			else
+				btrfs subvolume list --sort=-path "${dir}" | grep "${expr}" | cut -d ' ' -f 9 | \
+				while read subvol_path; do
+					if [ -z "$error" ]; then
+						if ! btrfs subvolume delete "${subvol_path}"; then
+							error="ERROR: Could not delete subvolume '${subvol_path}'"
+						fi
+					fi
+				done
+
+				if [ -z "$error" ]; then
+					echo "OK"
+				else
+					echo "${error}"
+				fi
+			fi
+		else
+			echo "ERROR: Directory '${dir}' is not a valid btrfs subvolume"
+		fi
+	else
+		echo "ERROR: Directory '${dir}' does not exist"
+	fi
+}
+
+# Ensure the subvolume is in RW state
+# PRE=
+# POST=the directory is a btrfs subvolume in RW state
+# $1 the subvolume to be changed
+# stdout "OK" on success, an error string otherwise
+btrfs_subvolume_set_rw() {
+	local dir=${1}
+
+	if is_btrfs_subvolume "$dir"; then
+		local lock_state=$(btrfs property get -fts "$dir")
+		if [[ $lock_state == *"ro=true"* ]]; then
+			if btrfs property set -fts ${dir} ro false; then
+				local lock_state_after_set=$(btrfs property get -fts "$dir")
+				if [[ $lock_state_after_set == *"ro=false"* ]]; then
+					echo "OK"
+				else
+					echo "ERROR: The subvolume '$dir' is still read-only"
+				fi
+			else
+				echo "ERROR: Could not set subvolume '$dir' read-write"
+			fi
+		else
+			echo "OK"
+		fi
+	else
+		echo "ERROR: the given argument '$dir' is not a btrfs subvolume"
+	fi
+}
+
+# Ensure the subvolume is in RO state
+#
+# PRE=the directory is a btrfs subvolume
+# POST=the directory is a btrfs subvolume in RO state
+#
+# $1 the subvolume to be changed
+# stdout "OK" on success, an error string otherwise
+btrfs_subvolume_set_ro() {
+	local dir=${1}
+
+	if is_btrfs_subvolume "$dir"; then
+		local lock_state=$(btrfs property get -fts "$dir")
+		if [[ $lock_state == *"ro=false"* ]]; then
+			if btrfs property set -fts ${dir} ro true; then
+				local lock_state_after_set=$(btrfs property get -fts "$dir")
+				if [[ $lock_state_after_set == *"ro=true"* ]]; then
+					echo "OK"
+				else
+					echo "ERROR: The subvolume '$dir' is still read-write"
+				fi
+			else
+				echo "ERROR: Could not set subvolume '$dir' read-only"
+			fi
+		else
+			echo "OK"
+		fi
+	else
+		echo "ERROR: the given argument '$dir' is not a btrfs subvolume"
+	fi
+}
+
+# Get the btrfs subvolume id of the given subvolume path
+#
+# PRE=$1 is a btrfs subvolume
+# POST=
+#
+# $1 the subvolume to be inspected
+# stdout SubvolID on success, an error string otherwise
+btrfs_subvol_get_id() {
+	local dir=${1}
+
+	if is_btrfs_subvolume "$dir"; then
+		local subvolid=$(btrfs subvolume show $dir | grep "Subvolume ID:" | cut -d ':' -f 2 | tr -d '[:space:]')
+
+		echo $subvolid
+	else
+		echo "ERROR: $dir is not a valid btrfs subvolume"
+	fi
+}
+
+# Install the provided image file into the given deployment directory
+#
+# PRE=
+# POST=
+#
+# $1 The path to the image file
+# $2 The path to the deployment directory
+# stdout "OK" on success, an error otherwise
+install_image() {
+	local img_file=${1}
+	local deploy_path=${2}
+
+	if [ -d "${deploy_path}" ]; then
+		if [[ "${IMG_FILE##*.}" == "img" ]]; then
+			btrfs receive --quiet ${DEPLOY_PATH} <${IMG_FILE}
+			echo "OK"
+		elif [[ "${IMG_FILE##*.}" == "zst" ]]; then
+			zstd -d -c ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+			echo "OK"
+		elif [[ "${IMG_FILE##*.}" == "xz" ]]; then
+			if [[ "${IMG_FILE}" == *".tar.xz" ]]; then
+				tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+				echo "OK"
+			else
+				xz -dc ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
+				echo "OK"
+			fi
+		else
+			echo "ERROR: Unsupported file format for file '${IMG_FILE}'"
+		fi
+	else
+		echo "ERROR: Deployment path '${deploy_path}' is not a directory"
+	fi
+}
+
+# Get the newest image url for the given channel
+# $1 channel (can be either "stable", "testing" or "unstable")
+# stdout the image url
+get_img_url() {
+	local update_channel=${1}
+
+	# Order by creation date in reverse
+	result=$(jq 'sort_by(.created_at) | reverse')
+
+	# Remove entries which have not been completed uploading
+	result=$(echo "${result}" | jq 'del(.[] | select(.assets[].state != "uploaded"))')
+
+	# Always check for stable date
+	if stable_release_date=$(
+		echo "${result}" | jq -er '[ .[] |
+			select(.prerelease==false) ] |
+			first |
+			.created_at'
+	); then
+		# Check for stable url, this is the latest that have prerelease == false
+		stable_download_url=$(
+			echo "${result}" | jq -r '[ .[] |
+			select(.prerelease==false) ] |
+			first |
+			.assets[] |
+			select(.browser_download_url | test("img")) |
+			.browser_download_url'
+		)
+	else
+		# No stable channel found, pick some (old) values
+		# For testing/ channel selection
+		stable_release_date="1970-01-01T00:00:00Z"
+		stable_download_url=""
+	fi
+
+	# Filter channels by release naming conventions
+	if [[ "$update_channel" =~ ^[0-9]+\-?[0-9]*$ ]]; then
+		# Check first for explicit version numbers between stable releases
+		# Useful for downgrading
+		result=$(
+			echo "${result}" | jq -r "[ .[] |
+					select(.prerelease==false) |
+					select(.name|test(\" ${update_channel}\$\")) ] |
+					first |
+					.assets[] |
+					select(.browser_download_url | test(\"img\")) |
+					.browser_download_url"
+		)
+	elif [ "$update_channel" == "stable" ]; then
+		result=$stable_download_url
+	elif [ "$update_channel" == "testing" ]; then
+		# Testing channel have prerelease = true and no other tags
+		if testing_release_date=$(
+			echo "${result}" | jq -er '[ .[] |
+			select(.prerelease==true) |
+			select(.name|test("\\[.*\\]")|not) ] |
+			first |
+			.created_at'
+		); then
+			testing_url=$(
+				echo "${result}" | jq -r '[ .[] |
+						select(.prerelease==true) |
+						select(.name|test("\\[.*\\]")|not) ] |
+						first |
+						.assets[] |
+						select(.browser_download_url | test("img")) |
+						.browser_download_url'
+			)
+			if [ $(date -d $testing_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
+				result=$stable_download_url
+			else
+				result=$testing_url
+			fi
+		else
+			result=$stable_download_url
+		fi
+	else
+		# Match any release with CHANNEL as a tag (including unstable)
+		result=$(echo ${result} | jq "[ .[] | select(.prerelease==true) | select(.name|test(\"\\\[${update_channel}\\\]\" ; \"i\")) ]")
+		if unstable_release_date=$(
+			echo "${result}" | jq -er "[ .[] |
+					select(.prerelease==true) |
+					select(.name|test(\"\\\[${update_channel}\\\]\" ; \"i\")) ] |
+					first |
+					.created_at"
+		); then
+			unstable_url=$(
+				echo "${result}" | jq -r "[ .[] |
+						select(.prerelease==true) |
+						select(.name|test(\"\\\[${update_channel}\\\]\" ; \"i\")) ] |
+						first |
+						.assets[] |
+						select(.browser_download_url | test(\"img\")) |
+						.browser_download_url"
+			)
+			if [ $(date -d $unstable_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
+				result=$stable_download_url
+			else
+				result=$unstable_url
+			fi
+		else
+			result=$stable_download_url
+		fi
+	fi
+
+	echo $result
+}
+
+clean_progress() {
+	local scale=$1
+	local postfix=$2
+	local last_value=$scale
+	while IFS= read -r line; do
+		TASK_PROGRESS=0
+		value=$((${line} * ${scale} / 100))
+		if [ "$last_value" != "$value" ]; then
+			echo ${value}${postfix}
+			last_value=$value
+		fi
+		TASK_PROGRESS=$value
+		send_data
+	done
+}
+
+# Check that the system has been boot with UEFI
+# stdout "OK" on success, an error otherwise
+check_uefi() {
+	if [ -d /sys/firmware/efi/efivars ]; then
+		echo "OK"
+	else
+		echo "ERROR: Not a UEFI system"
+	fi
+}
+
+# Check if there are migrations available in the image to be deployed and run them one by one
+# Note: migrations are functions named either post_install or chroot_post_install inside (executable) files with .migration extension
+# stored inside $2/usr/lib/frzr.d/
+#
+# Every post_install function will be run in a subshell, while every chroot_post_install will be run inside a chroot.
+#
+# PRE=$2/usr/lib/frzr.d is a directory
+# POST=
+#
+# $1 the deployment version; this is also the deployment name (the name of the subvolume to be used as rootfs)
+# $2 the deployment subvolume
+# $3 frzr_root the mounted path to the main btrfs subvolume (the one that contains home as a subvolume)
+# $4 frzr version string
+# stdout "OK" on success, the error otherwise
+execute_migrations() {
+	local deployment_version=$1
+	local deployment=$2
+	local frzr_root=$3
+	local frzr_version=$4
+
+	if compgen -G "${deployment}"/usr/lib/frzr.d/*.migration >/dev/null; then
+		for m in "${deployment}"/usr/lib/frzr.d/*.migration; do
+			unset frzr_migration_version
+
+			unset -f post_install
+
+			# source the migration
+			. $m
+
+			# only execute migrations marked for newer frzr versions
+			if [ ! -z "$frzr_migration_version" ] && [ $frzr_migration_version -gt 0 ]; then
+				if [ "$(type -t post_install)" == function ] ; then
+
+					# Run migration and check for errors
+					local install_migration_first_error=$(post_install "${frzr_root}" "${deployment}" "${deployment_version}" "${frzr_version}")
+					if echo "${install_migration_first_error}" | grep -Fq "ERROR"; then
+						break
+					fi
+				fi
+			fi
+
+			unset -f post_install
+
+			unset frzr_migration_version
+		done
+
+		if echo "${install_migration_first_error}" | grep -Fq "ERROR"; then
+			echo "ERROR: Could not execute migration '$m': ${install_migration_first_error}"
+		else
+			echo "OK"
+		fi
+	else
+		echo "OK"
+	fi
+}
+
+# Check if there are unlock scripts available in the image to be unlocked and run them one by one
+# Note: post_unlock scripts are functions named unlock inside (executable) files with .unlock extension
+# stored inside $2/usr/lib/frzr.d/
+#
+# Every post_unlock function will be run in a subshell.
+#
+# PRE=$2/usr/lib/frzr.d is a directory
+# POST=
+#
+# $1 the deployment version; this is also the deployment name (the name of the subvolume to be used as rootfs)
+# $2 the mounted subvolume
+# $3 frzr_root the mounted path to the main btrfs subvolume (the one that contains home as a subvolume)
+# $4 frzr version string
+# stdout "OK" on success, the error otherwise
+execute_unlock() {
+	local version=$1
+	local deployment=$2
+	local frzr_root=$3
+	local frzr_version=$4
+
+	local error=""
+
+	if compgen -G "${deployment}"/usr/lib/frzr.d/*.unlock >/dev/null; then
+		for m in "${deployment}"/usr/lib/frzr.d/*.unlock; do
+			unset frzr_migration_version
+
+			unset -f post_unlock
+
+			# source the migration
+			. $m
+
+			# only execute unlock scripts marked for newer frzr versions
+			if [ -z "${error}" ] && [ ! -z "${frzr_migration_version}" ] && [ $frzr_migration_version -gt 0 ]; then
+				if [ "$(type -t post_unlock)" == function ] ; then
+
+					# Run migration and check for errors
+					local unlock_script_result=$(post_unlock "${frzr_root}" "${deployment}" "${version}")
+					if echo "${unlock_script_result}" | grep -Fq "ERROR"; then
+						error="${unlock_script_result}"
+					fi
+				else
+					echo "$m has no post_unlock function"
+				fi
+			fi
+
+			unset -f post_unlock
+
+			unset frzr_migration_version
+		done
+	fi
+
+	if [ -z "${error}" ]; then
+		echo "OK"
+	else
+		echo "${error}"
+	fi
+}
+
+# Check if there are removal scripts available in the image to be removed and run them one by one
+# Note: removal scripts are functions named pre_removal inside (executable) files with .removal extension
+# stored inside $2/usr/lib/frzr.d/
+#
+# Every pre_removal function will be run in a subshell.
+#
+# PRE=$2/usr/lib/frzr.d is a directory
+# POST=
+#
+# $1 the deployment version; this is also the deployment name (the name of the subvolume to be used as rootfs)
+# $2 the deployment subvolume
+# $3 frzr_root the mounted path to the main btrfs subvolume (the one that contains home as a subvolume)
+# $4 frzr version string
+# stdout "OK" on success, the error otherwise
+execute_removal() {
+	local version=$1
+	local deployment=$2
+	local frzr_root=$3
+	local frzr_version=$4
+
+	local error=""
+
+	if compgen -G "${deployment}"/usr/lib/frzr.d/*.removal >/dev/null; then
+		for m in "${deployment}"/usr/lib/frzr.d/*.removal; do
+			unset frzr_migration_version
+
+			unset -f pre_removal
+
+			# source the migration
+			. $m
+
+			# only execute unlock scripts marked for newer frzr versions
+			if [ -z "${error}" ] && [ ! -z "${frzr_migration_version}" ] && [ $frzr_migration_version -gt 0 ]; then
+				if [ "$(type -t pre_removal)" == function ] ; then
+					echo "Running $m"
+					local unlock_script_result=$(pre_removal "${frzr_root}" "${deployment}" "${version}" "${frzr_version}")
+					if echo "${unlock_script_result}" | grep -Fq "ERROR"; then
+						error="${unlock_script_result}"
+					fi
+				else
+					echo "$m has no pre_removal function"
+				fi
+			fi
+
+			unset -f pre_removal
+
+			unset frzr_migration_version
+		done
+	fi
+
+	if [ -z "${error}" ]; then
+		echo "OK"
+	else
+		echo "${error}"
+	fi
+}
+
+# Write the systemd-boot entry needed to boot the specified deployment
+# Note: this function can ignore amd-ucode and intel-ucode if those are not found since 
+#         either dracut or mkinitcpio will place those in the initramfs and including
+#         them on systemd-boot is now being deprecated.
+# $1  the deployment version
+# $2  the config file name
+# $3  the boot entry (visible) name
+# $4  /efi mount path, the vfat partition (mind not inserting a final /)
+# $5  amd_ucode.img path relative to $2/$3/ (mind not inserting a final /)
+# $6  intel_ucode.img path relative to $2/$3/ (mind not inserting a final /)
+# $7  vmlinuz-linux path relative to $2/$3/ (mind not inserting a final /)
+# $8  initramfs-linux.img path relative to $2/$3/ (mind not inserting a final /)
+# $9  additional arguments to be used in the kernel cmdline
+# $10 the UUID of the btrfs rootfs partition containing the deployment to boot
+# $11 the btrfs subvolume ID of the deployment to boot
+# stdout the configuration to be written to a systemd-boot entry to make the given deployment version bootable
+# return "OK" for success, an error string otherwise
+generate_systemd_boot_cfg() {
+	local version=${1}
+	local entry_conf_filename=${2}
+	local entry_name=${3}
+	local efi_mount_path=${4}
+	local amd_ucode=${5}
+	local intel_ucode=${6}
+	local vmlinuz=${7}
+	local initramfs=${8}
+	local additional_arguments=${9}
+	local btrfs_rootfs_uuid=${10}
+	local btrfs_rootfs_subvolid=${11}
+
+	local entry_conf="${efi_mount_path}/loader/entries/${entry_conf_filename}"
+
+	# search for the actual kernel to boot
+	if [ -f "${efi_mount_path}/${version}/${vmlinuz}" ]; then
+		# search fot the initramfs
+		if [ -f "${efi_mount_path}/${version}/${initramfs}" ]; then
+			# write title chimeraos-46_fcc653a3 (also creating the boot entry file if it doesn't exists yet)
+			echo "title ${entry_name}" > "${entry_conf}"
+
+			# write linux /chimeraos-46_fcc653a3/vmlinuz-linux
+			if [ -z "${version}" ]; then
+				echo "linux /${vmlinuz}" >> "${entry_conf}"
+			else
+				echo "linux /${version}/${vmlinuz}" >> "${entry_conf}"
+			fi
+
+			# write /chimeraos-46_fcc653a3/amd-ucode.img if necessary
+			if [ -f "${efi_mount_path}/${version}/${amd_ucode}" ]; then
+				if [ -z "${version}" ]; then
+					echo "initrd /${amd_ucode}" >> "${entry_conf}"
+				else
+					echo "initrd /${version}/${amd_ucode}" >> "${entry_conf}"
+				fi
+			else
+				echo "# amd-ucode.img omitted" >> "${entry_conf}"
+			fi
+
+			# write /chimeraos-46_fcc653a3/intel-ucode.img if necessary
+			if [ -f "${efi_mount_path}/${version}/${intel_ucode}" ]; then
+				if [ -z "${version}" ]; then
+					echo "initrd /${intel_ucode}" >> "${entry_conf}"
+				else
+					echo "initrd /${version}/${intel_ucode}" >> "${entry_conf}"
+				fi
+			else
+				echo "# intel-ucode.img omitted" >> "${entry_conf}"
+			fi
+
+			# write /chimeraos-46_fcc653a3/initrams-linuz.img
+			if [ -z "${version}" ]; then
+				echo "initrd /${initramfs}" >> "${entry_conf}"
+			else
+				echo "initrd /${version}/${initramfs}" >> "${entry_conf}"
+			fi
+
+			local options=""
+			if [ ! -z "${btrfs_rootfs_uuid}" ]; then
+				options="${options} root=UUID=${btrfs_rootfs_uuid} rw"
+			else
+				options="${options} root=gpt-auto rw"
+			fi
+
+			if [ ! -z "${btrfs_rootfs_subvolid}" ]; then
+				options="${options} rootflags=subvolid=${btrfs_rootfs_subvolid},noatime"
+			else
+				options="${options}"
+			fi
+
+			# write kernel cmdline
+			echo "options ${options} quiet splash loglevel=3 rd.systemd.show_status=auto rd.udev.log_priority=3 ${additional_arguments}" >> "${entry_conf}"
+			
+			# return success
+			echo "OK"
+		else
+			# return the error to be printed out
+			echo "ERROR: initramfs not found (searched at: '$efi_mount_path/$version/$initramfs')"
+		fi
+	else
+		# return the error to be printed out
+		echo "ERROR: kernel not found (searched at: '$mount_path/$version/$vmlinuz')"
+	fi
+}
+
+# Write the systemd-boot entry needed to make the specified deployment bootable.
+# Note: this function can ignore amd-ucode and intel-ucode if those are not found since mkinitcpio will place those
+# in the initramfs and including them on systemd-boot is now deprecated.
+# PRE=the deployment image is available to be read from
+# POST=the installed bootloader will automatically start the new deployment at boot
+# $1  the deployment version; this is also the deployment name (the name of the subvolume to be used as rootfs)
+# $2  /efi mount path
+# $3  the path to the deployment to be booted
+# $4  additional arguments to be used in the kernel cmdline
+# $5 the UUID of the btrfs rootfs partition containing the deployment to boot
+# $6 the btrfs subvolume ID of the deployment to boot
+# stdout "OK" for success, and error string otherwise
+prepare_efi_partition() {
+	local version=${1}
+	local efi_mount_path=${2}
+	local boot_dir=${3}
+	local additional_arguments=${4}
+	local btrfs_rootfs_uuid=${5}
+	local btrfs_rootfs_subvolid=${6}
+
+	local default_config_entry=""
+
+	# create /loader/entries in the EFI system partition (if it does not exists already)
+	mkdir -p ${efi_mount_path}/loader/entries
+
+	# this will hold the default .conf file
+	local default_boot_cfg=""
+
+	# Clear out old initramfs for the current deployment
+	if [ -d "${efi_mount_path}/${version}" ]; then
+		rm -rf "${efi_mount_path}/${version}"
+	fi
+
+	if [ -d "${efi_mount_path}/loader/entries" ]; then
+		# Clear out old boot configuration
+		for config_file_path in "${efi_mount_path}/loader/entries"/frzr-*; do
+			if echo "${config_file_path}" | grep -Fq "${version}"; then
+				rm -f "${config_file_path}"
+			fi
+		done
+
+		# Iterate over each pair of files
+		for vmlinuz_file_path in "${boot_dir}"/vmlinuz-*; do
+			# Extract the matching part of the filename and remove the .img extension
+			kernel_version=$(basename "${vmlinuz_file_path}" | sed 's/^vmlinuz-//')
+
+			# Check if the file really is a linux kernel
+			if ! file -bL "${vmlinuz_file_path}" | grep -Fq "Linux kernel"; then
+				continue
+			fi
+
+			# $initramfs_file is the initramfs name of the file in /boot: find the corresponding vmlinuz file
+			initramfs_file="initramfs-${kernel_version}.img"
+			
+			# $vmlinuz_file is the kernel name of the file in /boot: find the corresponding initramfs file
+			vmlinuz_file="vmlinuz-${kernel_version}"
+			
+			# Check if the corresponding vmlinuz file exists
+			if [ -f "${boot_dir}/${vmlinuz_file}" ] && [ -f "${boot_dir}/${initramfs_file}" ]; then
+				# each deployment will need its own kernel(s) as well as initramfs to boot: place them in a EFI subdirectory
+				mkdir -p "${efi_mount_path}/${version}"
+
+				# If the initramfs contains the AMD microcode spare space in /efi and do not copy it
+				if cat "${boot_dir}/${initramfs_file}" | cpio -itv 2>/dev/null | grep -Fq "AuthenticAMD.bin"; then
+					local amd_ucode="amd-ucode.img_excluded"
+				else
+					local amd_ucode="amd-ucode.img"
+				fi
+
+				if [ -e "${boot_dir}/${amd_ucode}" ]; then
+					cp "${boot_dir}/${amd_ucode}" "${efi_mount_path}/${version}/${amd_ucode}"
+				fi
+
+				# If the initramfs contains the Intel microcode spare space in /efi and do not copy it
+				if cat "${boot_dir}/${initramfs_file}" | cpio -itv 2>/dev/null | grep -Fq "GenuineIntel.bin"; then
+					local intel_ucode="intel-ucode.img_excluded"
+				else
+					local intel_ucode="intel-ucode.img"
+				fi
+
+				if [ -e "${boot_dir}/${intel_ucode}" ]; then
+					cp "${boot_dir}/${intel_ucode}" "${efi_mount_path}/${version}/${intel_ucode}"
+				fi
+
+				if cp "${boot_dir}/${vmlinuz_file}" "${efi_mount_path}/${version}/${vmlinuz_file}"; then
+					if cp "${boot_dir}/${initramfs_file}" "${efi_mount_path}/${version}/${initramfs_file}"; then
+						local boot_entry="frzr-${version}-${kernel_version}.conf"
+						
+						# Write the configuration entry
+						local systemd_boot_update_result=$(generate_systemd_boot_cfg "${version}" "${boot_entry}" "${version} (${kernel_version})" "${efi_mount_path}" "${amd_ucode}" "${intel_ucode}" "${vmlinuz_file}" "${initramfs_file}" "${additional_arguments}" "${btrfs_rootfs_uuid}" "${btrfs_rootfs_subvolid}")
+						if echo "${systemd_boot_update_result}" | grep -q 'ERROR'; then
+							echo "ERROR: Could not add bootloader entry: ${systemd_boot_update_result}"
+						else
+							default_boot_cfg="${boot_entry}"
+						fi
+					else
+						echo "ERROR: Could not copy '${boot_dir}/${initramfs_file}' to '${efi_mount_path}/${version}/${initramfs_file}'"
+					fi
+				else
+					echo "ERROR: Could not copy '${boot_dir}/${vmlinuz_file}' to '${efi_mount_path}/${version}/${vmlinuz_file}'"
+				fi
+			fi
+		done
+
+		# override the default deployment boot with the user-provided one
+		if [ -f "${efi_mount_path}/loader/entries/frzr_kernel.conf" ]; then
+			default_boot_cfg="frzr_kernel.conf"
+		fi
+
+		# write the default boot entry
+		if [ -z "$default_boot_cfg" ]; then
+			echo "ERROR: no bootable kernel found"
+		else
+			echo "default ${default_boot_cfg}" > "${efi_mount_path}/loader/loader.conf"
+
+			# If frzr-kernel has been used this is a development machine: add a boot timeout so that different kernels can be used
+			if [ "${default_boot_cfg}" = "frzr_kernel.conf" ]; then
+				echo "timeout 3" >> "${efi_mount_path}/loader/loader.conf"
+			fi
+
+			echo "OK"
+		fi
+	fi
+}

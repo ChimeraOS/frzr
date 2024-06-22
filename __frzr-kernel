@@ -1,0 +1,424 @@
+#! /bin/bash
+
+set -o pipefail
+
+# import methods
+#source "${BASH_SOURCE%/*}/__frzr" "$@"
+
+frzr_kernel() {
+	local KERNEL_NAME=""
+
+	RUNNING=true
+	STATE="BEGIN"
+	while $RUNNING; do
+		case "$STATE" in
+		"BEGIN")
+			MOUNT_PATH="/frzr_root"
+
+			# Make sure the frzr_root is mounted during the deployment procedure
+			# this code is based on the fact that when a btrfs filesystem is created
+			# the default subvolid that is created contextually has the ID set to 256
+			# also as a matter of fact in btrfs is impossible to change subvolumes IDs
+			if mount | grep -Fq "${MOUNT_PATH}"; then
+				local MOUNTED_MOUNT_PATH="no"
+			else
+				MOUNT_PATH="/tmp/frzr_root"
+				#TASK_MSG="Preparing '${MOUNT_PATH}' to be used as the main subvolume mount path"
+				mkdir -p "${MOUNT_PATH}"
+				if sudo mount -L frzr_root -t btrfs -o subvolid=5,rw "${MOUNT_PATH}"; then
+					local MOUNTED_MOUNT_PATH="yes"
+				else
+					echo "frzr-kernel failed: could not mount frzr_root"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+				sleep 5
+			fi
+
+			# Make sure the EFI partition is mounted during the deployment procedure
+			EFI_MOUNT_PATH="${MOUNT_PATH}/efi"
+
+			if mount | grep -Fq "${EFI_MOUNT_PATH}"; then
+				local MOUNTED_EFI_MOUNT_PATH="no"
+			else
+				sudo mkdir -p "${EFI_MOUNT_PATH}"
+				if sudo mount -L frzr_efi -o rw,noauto,noexec,nosuid,nodev,uid=0,gid=379,dmask=007,fmask=117 "${EFI_MOUNT_PATH}"; then
+					local MOUNTED_EFI_MOUNT_PATH="yes"
+				else
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not bind ${EFI_MOUNT_PATH} to frzr_efi (boot) partition"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+				sleep 5
+			fi
+
+			if [ ! -f "/usr/bin/depmod" ]; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find depmod at '/usr/bin/depmod'"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			if ! type -P make >/dev/null 2>&1; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="make is unavailable, did you forget to install development packages?"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			if [ -d "${MOUNT_PATH}/kernels/usr" ]; then
+				local KERNEL_OVERLAY_DIR="${MOUNT_PATH}/kernels"
+				local MODULES_DIR="${KERNEL_OVERLAY_DIR}/usr"
+			else
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find kernels overlay in '${MOUNT_PATH}/kernels/usr'"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			STATE="DOWNLOAD"
+			;;
+
+		"DOWNLOAD")
+			if [ ! -f ".config" ]; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find kernel configuration"
+				STATE="FAIL"
+				send_data
+				continue
+			else
+				cp .config .config.pre
+			fi
+			
+			STATE="BUILD"
+			;;
+		
+		"BUILD")
+			# This is important as otherwise ccache will always have 100% misses
+			export KBUILD_BUILD_TIMESTAMP=""
+			export KBUILD_BUILD_USER="root"
+			export KBUILD_BUILD_HOST="frzr"
+
+			if [ -f "/usr/bin/clang" ] && [ -f "/usr/bin/llvm-ar" ] && [ -f "/usr/bin/lld" ]; then
+				echo "Compiling with clang"
+				export LLVM=1
+				
+				if [ -f "/usr/bin/ccache" ]; then
+					export CC="ccache clang"
+				fi
+			else
+				echo "Couldn't set clang as the compiler"
+			fi
+
+			# Fetch the name of the kernel (uname -r)
+			if ! make -s kernelrelease > version; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not execute defconfig (1)"
+				STATE="FAIL"
+				send_data
+				continue
+			else
+				local KERNEL_NAME=$(cat version)
+			fi
+
+			if [ ! -f "include/config/auto.conf" ]; then
+
+				if ! make defconfig; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not execute defconfig (1)"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+
+				if ! make defconfig; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not execute defconfig (2)"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+
+				# This will perform a clean of previous build artifacts
+				#if ! make KERNELRELEASE="${KERNEL_NAME}" mrproper; then
+				#	TASK_ERROR=1
+				#	TASK_ERROR_MSG="Could not execute mrproper"
+				#	STATE="FAIL"
+				#	send_data
+				#	continue
+				#fi
+
+				cp .config.pre .config
+
+				#echo "Checking for pre-installed kernel"
+				#if [ -d "/usr/lib/modules/${KERNEL_NAME}" ]; then
+				#	TASK_ERROR=1
+				#	TASK_ERROR_MSG="ERROR: Kernel ${KERNEL_NAME} already exists"
+				#	STATE="FAIL"
+				#	continue
+				#fi
+			fi
+
+			echo "Building ${KERNEL_NAME}..."
+
+			# Get the number of available cores
+			local CORES=$(nproc)
+			local CORES_INT=$(echo $CORES | awk -F. '{print $1}')
+
+			# Decide the number of cores to use based on the condition
+			if [ $CORES_INT -le 16 ]; then
+				MAKE_CORES=$CORES_INT
+			else
+				MAKE_CORES=$((CORES_INT - 2))
+			fi
+
+			# Invoke make with the determined number of cores
+			if ! make -j$MAKE_CORES all; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="ERROR: Compilation of linux-${KERNEL_NAME} failed"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			STATE="INSTALL"
+			;;
+		"INSTALL")
+			
+			# Install kernel modules (taken from _package)
+			local modulesdir="${MODULES_DIR}/lib/modules/${KERNEL_NAME}"
+			mkdir -p -m 755 "${modulesdir}"
+
+			# systemd expects to find the kernel here to allow hibernation
+			# https://github.com/systemd/systemd/commit/edda44605f06a41fb86b7ab8128dcf99161d2344
+			install -Dm775 "$(make -s KERNELRELEASE="${KERNEL_NAME}" image_name)" "$modulesdir/vmlinuz"
+
+			# Used by mkinitcpio to name the kernel
+			echo "${KERNEL_NAME}" > pkgbase
+			install -Dm775 pkgbase "$modulesdir/pkgbase"
+			rm pkgbase
+
+			# Install modules suppressing depmod
+			ZSTD_CLEVEL=19 make -j$MAKE_CORES KERNELRELEASE="${KERNEL_NAME}" INSTALL_MOD_PATH="${MODULES_DIR}" INSTALL_MOD_STRIP=1 DEPMOD=/usr/bin/depmod modules_install
+
+			# remove build links
+			rm -rf "${modulesdir}/build"
+
+			# Install api-headers (taken from _package-api-headers)
+			make -j$MAKE_CORES KERNELRELEASE="${KERNEL_NAME}" INSTALL_HDR_PATH="${MODULES_DIR}" headers_install
+
+			# Install kernel headers (taken from _package-headers)
+			local builddir="${MODULES_DIR}/lib/modules/${KERNEL_NAME}/build"
+			mkdir -p -m 755 "${builddir}"
+
+			# Install build files
+			install -Dt "$builddir" -m775 .config Makefile Module.symvers System.map version vmlinux
+
+			if ls -lah | grep -Fq "localversion."; then
+				for localversion in localversion.*; do
+					install -Dt "$builddir" -m775 "${localversion}"
+				done
+			fi
+
+			install -Dt "$builddir/kernel" -m775 kernel/Makefile
+			install -Dt "$builddir/arch/x86" -m775 arch/x86/Makefile
+			cp -t "$builddir" -a scripts
+
+			# required when STACK_VALIDATION is enabled
+			install -Dt "$builddir/tools/objtool" tools/objtool/objtool
+
+			# required when DEBUG_INFO_BTF_MODULES is enabled
+			install -Dt "$builddir/tools/bpf/resolve_btfids" tools/bpf/resolve_btfids/resolve_btfids
+
+			# Install headers
+			cp -t "$builddir" -a include
+			cp -t "$builddir/arch/x86" -a arch/x86/include
+			install -Dt "$builddir/arch/x86/kernel" -m775 arch/x86/kernel/asm-offsets.s
+
+			install -Dt "$builddir/drivers/md" -m775 drivers/md/*.h
+
+			install -Dt "$builddir/net/mac80211" -m775 net/mac80211/*.h
+
+			# https://bugs.archlinux.org/task/13146
+			install -Dt "$builddir/drivers/media/i2c" -m775 drivers/media/i2c/msp3400-driver.h
+
+			# https://bugs.archlinux.org/task/20402
+			install -Dt "$builddir/drivers/media/usb/dvb-usb" -m775 drivers/media/usb/dvb-usb/*.h
+			install -Dt "$builddir/drivers/media/dvb-frontends" -m775 drivers/media/dvb-frontends/*.h
+			install -Dt "$builddir/drivers/media/tuners" -m775 drivers/media/tuners/*.h
+
+			# https://bugs.archlinux.org/task/71392
+			install -Dt "$builddir/drivers/iio/common/hid-sensors" -m775 drivers/iio/common/hid-sensors/*.h
+
+			# Install Kconfig files
+			find . -name 'Kconfig*' -exec install -Dm775 {} "$builddir/{}" \;
+
+			# Remove unneeded architectures
+			local arch
+			for arch in "$builddir"/arch/*/; do
+				[[ $arch = */x86/ ]] && continue
+				echo "Removing $(basename "$arch")"
+				rm -r "$arch"
+			done
+
+			# Remove documentation
+			rm -r "$builddir/Documentation"
+
+			# Remove broken  symlinks
+			find -L "$builddir" -type l -printf 'Removing %P\n' -delete
+
+			# Remove loose objects
+			find "$builddir" -type f -name '*.o' -printf 'Removing %P\n' -delete
+
+			if [ -z "${STRIP_STATIC}" ]; then
+				local STRIP_STATIC="--strip-debug"
+			fi
+
+			if [ -z "${STRIP_SHARED}" ]; then
+				local STRIP_SHARED="--strip-unneeded"
+			fi
+
+			if [ -z "${STRIP_BINARIES}" ]; then
+				local STRIP_BINARIES="--strip-all"
+			fi
+
+			# Strip build tools
+			local file
+			while read -rd '' file; do
+				case "$(file -Sib "$file")" in
+				application/x-sharedlib\;*)      # Libraries (.so)
+					strip -v $STRIP_SHARED "$file" ;;
+				application/x-archive\;*)        # Libraries (.a)
+					strip -v $STRIP_STATIC "$file" ;;
+				application/x-executable\;*)     # Binaries
+					strip -v $STRIP_BINARIES "$file" ;;
+				application/x-pie-executable\;*) # Relocatable binaries
+					strip -v $STRIP_SHARED "$file" ;;
+				esac
+			done < <(find "$builddir" -type f -perm -u+x ! -name vmlinux -print0)
+
+			# Strip vmlinux
+			strip -v $STRIP_STATIC "$builddir/vmlinux"
+
+			# Add symlinks
+			mkdir -p -m 755 "${MODULES_DIR}/src"
+
+			ln -sr "$builddir" "${MODULES_DIR}/src/${KERNEL_NAME}"
+
+			STATE="INITRAMFS"
+			;;
+		"INITRAMFS")
+
+			# This has worked:
+			# dracut --force --add-drivers " xhci_pci usbhid "  --filesystems "overlay btrfs" --strip --aggressive-strip  --reproducible --kver ${KERNEL_NAME} --kmoddir "${MODULES_DIR}/lib/modules/${KERNEL_NAME}" "${EFI_MOUNT_PATH}/initramfs-frzr.img"
+
+			if ! dracut --force --filesystems "overlay btrfs" --strip --aggressive-strip --fstab --reproducible --kver ${KERNEL_NAME} --kmoddir "${MODULES_DIR}/lib/modules/${KERNEL_NAME}" "${EFI_MOUNT_PATH}/initramfs-frzr.img"; then
+				#TASK_ERROR=1
+				#TASK_ERROR_MSG="ERROR: Could not generate a valid initramfs"
+				#STATE="FAIL"
+				#send_data
+				#continue
+				echo "WARNING: initramfs might not be complete"
+			fi
+
+			#if ! mkinitcpio -c "${BASH_SOURCE%/*}/../lib/frzr/mkinitcpio.conf" -g "${EFI_MOUNT_PATH}/initramfs-frzr.img" -k "${KERNEL_NAME}" -r "${MODULES_DIR}"; then
+			#	#TASK_ERROR=1
+			#	#TASK_ERROR_MSG="ERROR: Could not generate a valid initramfs"
+			#	#STATE="FAIL"
+			#	#send_data
+			#	#continue
+			#	echo "WARNING: initramfs might not be complete"
+			#fi
+
+			if ! cp "$modulesdir/vmlinuz" "${EFI_MOUNT_PATH}/vmlinuz-frzr"; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="ERROR: Could not copy '$modulesdir/vmlinuz' to '${EFI_MOUNT_PATH}/vmlinuz-frzr'"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			STATE="BOOTLOADER"
+			;;
+		"BOOTLOADER")
+			# Read additional boot arguments (to be added to the kernel cmdline) from the user file
+			local additional_arguments=""
+			if [ -f "${EFI_MOUNT_PATH}/frzr_bootconfig.conf" ]; then
+				local user_bootconf_args=$(cat "${EFI_MOUNT_PATH}/frzr_bootconfig.conf") 
+				additional_arguments="$additional_arguments ${user_bootconf_args}"
+			else
+				TASK_WARNING=1
+				TASK_WARNING_MSG="Could not read '${EFI_MOUNT_PATH}/frzr_bootconfig.conf': deployment cmdline will be used"
+				send_data
+			fi
+
+			# Write "${EFI_MOUNT_PATH}/loader/entries/frzr_kernel.conf" so that frzr will make use of the new kernel
+			# WARNING: version being empty has special meaning
+			# WARNING: btrfs_rootfs_uuid being empty means gpt-auto will be used
+			local boot_entry_generation_res=$(generate_systemd_boot_cfg "" "frzr_kernel.conf" "frzr-kernel" "${EFI_MOUNT_PATH}" "no_ucode" "no_ucode" "vmlinuz-frzr" "initramfs-frzr.img" "" "")
+			if echo "${boot_entry_generation_res}" | grep -Fq "ERROR"; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not generate systemd-boot entry: ${boot_entry_generation_res}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+			
+			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
+			local efi_update_result=$(frzr-bootloader)
+			if echo "${efi_update_result}" | grep -Fq 'ERROR'; then
+				# bootloader configuration could not be updated
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not update the EFI partition: ${efi_update_result}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+			
+			STATE="SUCCESS"
+			;;
+		"SUCCESS")
+			# This state should only be used if the unlock completed without errors
+			#TASK_STATE="SUCCESS"
+
+			echo "frzr kernel deployment succeeded"
+
+			RUNNING=false
+			;;
+		"FAIL")
+			# This state should only be used if the unlock failed
+
+			#TASK_STATE="FAIL"
+
+			echo "ERROR: frzr-kernel failed: ${TASK_ERROR_MSG}"
+
+			RUNNING=false
+			;;
+		*)
+			TASK_STATE="UNKNOWN_ERROR"
+			echo "ERROR: Something went terribly wrong in $(basename $0)"
+			RUNNING=false
+			;;
+		esac
+	done
+
+	# umount the efi path
+	if [ "${MOUNTED_EFI_MOUNT_PATH}" = "yes" ]; then
+		if mountpoint -q "${EFI_MOUNT_PATH}"; then
+			sudo umount -l "${EFI_MOUNT_PATH}"
+		fi
+	fi
+
+	# umount the frzr_root subvolume (if it was mounted by this tool and not externally)
+	if [ "${MOUNTED_MOUNT_PATH}" = "yes" ]; then
+		if mountpoint -q "${MOUNT_PATH}"; then
+			sudo umount -l "${MOUNT_PATH}"
+		fi
+	fi
+}

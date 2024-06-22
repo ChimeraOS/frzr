@@ -1,0 +1,351 @@
+#! /bin/bash
+
+set -e
+
+# import methods
+source "${BASH_SOURCE%/*}/__frzr" "$@"
+
+# Perform the repair install
+# $1 target (physical) disk
+# $2 frzr_root main subvolume mount path (the one that contains the home subvolume)
+repair_install() {
+	local disk=${1}
+	local frzr_root=${2}
+
+	# 1st partition is always EFI
+	local boot_efi=$(fdisk -o Device --list ${disk} | grep "^${disk}.*1$")
+
+	# start frzr_root search from partition 2 (1st partition is always EFI)
+	local frzr_root_part_number=2
+	local install_mount=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${frzr_root_part_number}$")
+	local install_mount_label=$(blkid -s LABEL -o value "${install_mount}")
+	
+	while [ $frzr_root_part_number -le 10 ] && [[ $install_mount_label != "frzr_root" ]]
+	do
+		((frzr_root_part_number++))
+		install_mount=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${frzr_root_part_number}$")
+		install_mount_label=$(blkid -s LABEL -o value "${install_mount}")
+	done
+	
+	if [[ $install_mount_label != "frzr_root" ]]; then
+		# make sure the directory to be used as the frzr_root mountpoint does exists
+		mkdir -p "${frzr_root}"
+
+		# mount the frzr_root partition
+		mount -t btrfs -o subvolid=5,rw "${install_mount}" "${frzr_root}"
+
+		# set the default subvol back to 5 as the fresh installation did
+		btrfs subvolume set-default 5 "${frzr_root}"
+
+		# mkdir required directories
+		mkdir -p "${frzr_root}/boot"
+		mkdir -p "${frzr_root}/efi"
+
+		# clear out the etc overlay upperdir
+		if [ -d "${frzr_root}/etc/" ]; then
+			rm -rf ${frzr_root}/etc/*
+		else
+			mkdir -p "${frzr_root}/etc/"
+		fi
+
+		# clear out the etc overlay workdir
+		if [ -d "${frzr_root}/.etc/" ]; then
+			rm -rf "${frzr_root}"/.etc/*
+		else
+			mkdir -p "${frzr_root}/.etc/"
+		fi
+
+		# clear out the /var subvolume
+		if [ ! -d "${frzr_root}/var" ]; then
+			btrfs subvolume create ${frzr_root}/var
+		elif is_btrfs_subvolume "${frzr_root}/var"; then
+			rm -rf "${frzr_root}"/var/*
+		fi
+
+		# mount the EFI partition
+		mount -t vfat "${boot_efi}" "${frzr_root}/efi/"
+		
+		# remove everything from the EFI partition
+		rm -rf "${frzr_root}"/efi/*
+
+		# Delete every installed system
+		if [ -d "${frzr_root}"/deployments ]; then
+			echo "deleting subvolume(s)..."
+			btrfs subvolume delete ${frzr_root}/deployments/* || true
+		fi
+
+		# TODO: if a minimal/recovery system has to installed in the main partition here is the place to do just that.
+
+		echo "OK"
+	else
+		echo "ERROR: frzr_root not found"
+	fi
+}
+
+# Perform the fresh install
+# $1 target (physical) disk
+# $2 frzr_root main subvolume mount path (the one that contains the home subvolume)
+fresh_install() {
+	local disk=${1}
+	local frzr_root=${2}
+
+	mkdir -p ${frzr_root}
+
+	if [ -z "${SWAP_GIB:-}" ]; then
+		declare -i SWAP_GIB=2 # A 2GiB swap will prevent some games crashing on 16GB handhelds
+	fi
+
+	if [ -z "${ROOT_GIB:-}" ]; then
+		declare -i ROOT_GIB=0
+	fi
+
+	# $SEPARATE_HOME_FS can be either btrfs or ext4
+	if [ -z "${SEPARATE_HOME_FS:-}" ]; then
+		SEPARATE_HOME_FS="ext4"
+	fi
+
+	if [[ $SWAP_GIB -eq 0 ]]; then
+		SWAP_PART_NUMBER=0
+		ROOT_PART_NUMBER=2
+		if [[ $ROOT_GIB -eq 0 ]]; then
+			HOME_PART_NUMBER=0
+		else
+			HOME_PART_NUMBER=3
+		fi
+	else
+		SWAP_PART_NUMBER=2
+		ROOT_PART_NUMBER=3
+		if [[ $ROOT_GIB -eq 0 ]]; then
+			HOME_PART_NUMBER=0
+		else
+			HOME_PART_NUMBER=4
+		fi
+	fi
+
+	declare -i SWAP_START=1
+	declare -i SWAP_END=$((SWAP_GIB + SWAP_START))
+
+	declare -i ROOT_START=$((SWAP_END))
+	declare -i ROOT_END=$((ROOT_START + ROOT_GIB))
+
+	declare -i HOME_START=$((ROOT_END))
+
+	# create the GPT partition table and set the correct GPT type for each partition
+	parted --script ${disk} \
+		mklabel gpt
+
+	# create the FAT32 EFI boot partition
+	parted --script ${disk} \
+		mkpart primary fat32 1MiB 1GiB \
+		type 1 "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" \
+		set 1 esp on
+	
+	if [[ $SWAP_PART_NUMBER -ne 0 ]]; then
+		parted --script ${disk} \
+			mkpart primary linux-swap ${SWAP_START}GiB ${SWAP_END}GiB \
+			type $SWAP_PART_NUMBER "0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
+	fi
+
+	if [[ $HOME_PART_NUMBER -ne 0 ]]; then
+		# split / and /home into two partitions
+
+		parted --script ${disk} \
+			mkpart primary btrfs ${ROOT_START}GiB ${ROOT_END}GiB \
+			type $ROOT_PART_NUMBER "4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709"
+
+		parted --script ${disk} \
+			mkpart primary $SEPARATE_HOME_FS ${HOME_START}GiB 100% \
+			type $HOME_PART_NUMBER "933ac7e1-2eb4-4f13-b844-0e14e2aef915" \
+			set $HOME_PART_NUMBER linux-home on
+	else
+		# /home will be a subvolume of / (default)
+		parted --script ${disk} \
+			mkpart primary btrfs ${ROOT_START}GiB 100% \
+			type $ROOT_PART_NUMBER "4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709"
+	fi
+
+	# this creates the subvolid 5
+	local root_part=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${ROOT_PART_NUMBER}$")
+	mkfs.btrfs -L frzr_root -f ${root_part}
+	local root_uuid=$(blkid -s UUID -o value "${root_part}")
+	mount ${root_part} ${frzr_root} # mount rootfs
+	mkdir -p ${frzr_root}/efi # prepare to mount vfat
+	#echo "${root_uuid}" > "${frzr_root}/root_uuid"
+	btrfs subvolume create ${frzr_root}/var
+	mkdir -p "${frzr_root}/etc"
+	mkdir -p "${frzr_root}/boot"
+	mkdir -p "${frzr_root}/efi"
+	mkdir -p "${frzr_root}/.etc"
+
+	# setup boot partition (the bootloader will be installed by frzr-bootloader utility)
+	local efi_part=$(fdisk -o Device --list ${disk} | grep "^${disk}.*1$")
+	mkfs.vfat "${efi_part}"
+	dosfslabel "${efi_part}" frzr_efi
+	mount -t vfat "${efi_part}" "${frzr_root}/efi/"
+
+	# setup the swap partition
+	if [[ $SWAP_PART_NUMBER -ne 0 ]]; then
+		local swap_part=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${SWAP_PART_NUMBER}$")
+		mkswap "${swap_part}"
+		local swap_uuid=$(blkid -s UUID -o value "${swap_part}")
+		local swap_partuuid=$(blkid -s PARTUUID -o value "${swap_part}")
+		if [ ! -z "$swap_uuid" ]; then
+			echo "resume=PARTUUID=${swap_partuuid}" > "${frzr_root}/efi//frzr_bootconfig.conf"
+		fi
+		#echo "${swap_uuid}" > "${frzr_root}/swap_uuid"
+		swapon "${swap_part}" # activate swap for the installer
+	fi	
+
+	# create /home subvolume
+	btrfs subvolume create "${frzr_root}/home"
+
+	# set the /home as no copy-on-write
+	chattr +C "${frzr_root}/home"
+
+	# setup home partition
+	if [[ $HOME_PART_NUMBER -ne 0 ]]; then
+		# Delete the /home subvolume so that it can't be mounted (subvolume ids are never reused by btrfs)
+		btrfs subvolume delete "${frzr_root}/home"
+
+		local home_part=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${HOME_PART_NUMBER}$")
+		
+		if [[ SEPARATE_HOME_FS == "ext4" ]]; then
+			mkfs.ext4 -L frzr_home -f "${home_part}"
+		else
+			mkfs.btrfs -L frzr_home -f "${home_part}"
+		fi
+		
+		mkdir -p "${frzr_root}/home"
+		mount "${home_part}" "${frzr_root}/home"
+		
+		# set the /home as no copy-on-write if that is a btrfs filesystem
+		if [[ SEPARATE_HOME_FS == "btrfs" ]]; then
+			chattr +C "${frzr_root}/home"
+		fi
+
+		local home_uuid=$(blkid -s UUID -o value "${home_part}")
+		echo "${home_uuid}" >${frzr_root}/home_uuid
+	fi
+
+	# create folder for the gamer user
+	mkdir -p "${frzr_root}/home/${USERNAME}"
+	chown 1000:1000 "${frzr_root}/home/${USERNAME}"
+
+	# TODO: if a minimal/recovery system has to installed in the main partition here is the place to do just that.
+}
+
+frzr_bootstrap() {
+    RUNNING=true
+
+    # Check for the GUI installer
+    if [ -n "$1" ] && [ -n "$2" ]; then
+        STATE="FORMAT"
+        MOUNT_PATH=/tmp/frzr_root
+    else
+        STATE="FRZR_BOOTSTRAP_CHECK"
+    fi
+
+    TASK_TRACKER=0
+    TASK_MSG="Bootstrapping the drive for the FRZR system"
+    send_data
+    while $RUNNING; do
+        case "$STATE" in
+        "FRZR_BOOTSTRAP_CHECK")
+		
+			TASK_MSG="Checking for root privileges"
+			send_data
+			if [ $EUID -ne 0 ]; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="$(basename $0) not run as root"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+            echo "Checking for drives connected to the system"
+            MOUNT_PATH=/tmp/frzr_root
+            device_list=()
+            device_output=$(lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t')
+            while read -r line; do
+                name=/dev/$(echo "$line" | cut -f 1)
+                model=$(echo "$line" | cut -f 2)
+                size=$(echo "$line" | cut -f 3)
+                device_list+=($name)
+                device_list+=("$model ($size)")
+            done <<<"$device_output"
+            DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${device_list[@]}" 3>&1 1>&2 2>&3)
+            echo "Checking for existing FRZR deployments"
+            # Checking for existing installation
+
+            if (lsblk -o label ${DISK} | grep -q frzr_efi); then
+                echo "Existing installation found"
+
+                if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
+                    echo "User chose to do a repair install"
+                    REPAIR_INSTALL=1
+                    STATE="REPAIR"
+                else
+                    echo "User chose to do a clean install"
+                    STATE="FORMAT"
+                fi
+            else
+                echo "Existing installation not found"
+                STATE="FORMAT"
+            fi
+            ;;
+        "FORMAT")
+            echo "We are doing a fresh install"
+            USERNAME=user
+
+            if [ ! -z $1 ]; then
+                USERNAME=$1
+            fi
+
+            if [ ! -z $2 ]; then
+                DISK=$2
+            fi
+
+            fresh_install "${DISK}" "${MOUNT_PATH}"
+            RESULT=$?
+            if [ $RESULT -eq 0 ]; then
+                STATE="SUCCESS"
+            else
+                STATE="FAIL"
+                TASK_ERROR_MSG="Fresh installation has failed"
+                continue
+            fi
+            ;;
+        "REPAIR")
+            echo "We are doing a repair install"
+            local repair_install_result=$(repair_install "${DISK}" "${MOUNT_PATH}")
+            if echo "$repair_install_result" | grep -Fq "OK"; then
+                STATE="SUCCESS"
+            else
+                STATE="FAIL"
+                TASK_ERROR_MSG="Repair installation has failed"
+                continue
+            fi
+            ;;
+        "SUCCESS")
+            echo "Successfully prepared the drive for an FRZR installation"
+            TASK_MSG="Successfully prepared the drive for an FRZR installation"
+            TASK_TRACKER=1
+            send_data
+            RUNNING=false
+            ;;
+        "FAIL")
+            echo "The bootstrap failed"
+            TASK_ERROR=1
+            send_data
+            RUNNING=false
+            ;;
+        *)
+            echo "Something went terribly wrong"
+            TASK_ERROR_MSG="Bootstrap hit an unexpected state"
+            TASK_ERROR=1
+            send_data
+            RUNNING=false
+            ;;
+        esac
+    done
+}

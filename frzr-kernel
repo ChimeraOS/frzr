@@ -1,10 +1,10 @@
 #! /bin/bash
 
-source "${BASH_SOURCE%/*}/__frzr-bootstrap"
+source "${BASH_SOURCE%/*}/__frzr-kernel"
 
 # TODO: check the file lock exists
 
-frzr_bootstrap "$@"
+frzr_kernel "$@"
 # We don't need to check the exit status here because this is being ran and handled in frzr
 # RESULT=$?
 # exit $RESULT

@@ -2,9 +2,9 @@
 
 set -e
 
-if [ ! -e /build_info ]; then
-	echo "Not currently running a frzr deployment"
+if [ -e "/build_info" ]; then
+	cat "/build_info" | head -1
+else
+	echo "ERROR: not currently running a frzr deployment"
 	exit 1
 fi
-
-cat /build_info | head -1

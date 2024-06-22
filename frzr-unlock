@@ -1,55 +1,10 @@
 #! /bin/bash
 
-set -e
+source "${BASH_SOURCE%/*}/__frzr-unlock"
 
+# TODO: check the file lock exists
 
-if [ $EUID -ne 0 ]; then
-	echo "$(basename $0) must be run as root"
-	exit 1
-fi
-
-if ! frzr-release > /dev/null; then
-	echo "Not currently running a frzr deployment"
-	exit 1
-fi
-
-MOUNT_PATH=/frzr_root
-
-if ! mountpoint -q ${MOUNT_PATH}; then
-        mkdir -p ${MOUNT_PATH}
-        mount -L frzr_root ${MOUNT_PATH}
-        sleep 5
-fi
-
-if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep frzr_efi > /dev/null; then
-        mkdir -p ${MOUNT_PATH}/boot
-        mount -L frzr_efi ${MOUNT_PATH}/boot
-        sleep 5
-fi
-
-DEPLOYMENT=$(frzr-release)
-
-# set to read-write mode
-mount -o remount,rw /
-btrfs property set -fts /frzr_root/deployments/${DEPLOYMENT} ro false
-sed -i -e 's/,ro,/,rw,/' /etc/fstab
-systemctl daemon-reload
-
-
-# move kernel/initrd and ucode to standard location
-BOOT_CFG="${MOUNT_PATH}/boot/loader/entries/frzr.conf"
-if [ -f "${BOOT_CFG}" ]; then
-	# guard is for compatibility with systems still using syslinux during the transition to systemd-boot
-	cp ${MOUNT_PATH}/boot/${DEPLOYMENT}/* ${MOUNT_PATH}/boot/
-	sed -i ${BOOT_CFG} -e s,/${DEPLOYMENT}/,/,g
-fi
-
-
-# copy package database and refresh
-if [ -d /usr/var/lib/pacman/local ] && [ ! -d /var/lib/pacman/local ]; then
-	mkdir -p /var/lib/pacman
-	cp -r /usr/var/lib/pacman/local /var/lib/pacman/
-	pacman -Sy
-fi
-
-echo "frzr deployment ${DEPLOYMENT} unlocked"
+frzr_unlock "$@"
+# We don't need to check the exit status here because this is being ran and handled in frzr
+# RESULT=$?
+# exit $RESULT
