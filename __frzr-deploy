@@ -496,8 +496,6 @@ main() {
 	rm -rf /var/lib/pacman # undo frzr-unlock
 
 	echo "deployment complete; restart to boot into ${NAME}"
-
-	umount -R -l ${MOUNT_PATH}
 }
 
 
