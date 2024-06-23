@@ -168,8 +168,8 @@ fresh_install() {
 	local root_part=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${ROOT_PART_NUMBER}$")
 	mkfs.btrfs -L frzr_root -f ${root_part}
 	local root_uuid=$(blkid -s UUID -o value "${root_part}")
-	mount ${root_part} ${frzr_root} # mount rootfs
-	mkdir -p ${frzr_root}/efi # prepare to mount vfat
+	mount -t btrfs -o compress-force=zstd:15 "${root_part}" "${frzr_root}" # mount rootfs
+	mkdir -p "${frzr_root}/efi" # prepare to mount vfat
 	#echo "${root_uuid}" > "${frzr_root}/root_uuid"
 	btrfs subvolume create ${frzr_root}/var
 	mkdir -p "${frzr_root}/etc"
@@ -264,29 +264,40 @@ frzr_bootstrap() {
 
             echo "Checking for drives connected to the system"
             MOUNT_PATH=/tmp/frzr_root
-            device_list=()
-            device_output=$(lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t')
-            while read -r line; do
-                name=/dev/$(echo "$line" | cut -f 1)
-                model=$(echo "$line" | cut -f 2)
-                size=$(echo "$line" | cut -f 3)
-                device_list+=($name)
-                device_list+=("$model ($size)")
-            done <<<"$device_output"
-            DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${device_list[@]}" 3>&1 1>&2 2>&3)
+            if [ -z "${DISK}" ]; then
+				device_list=()
+				device_output=$(lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t')
+				while read -r line; do
+					name=/dev/$(echo "$line" | cut -f 1)
+					model=$(echo "$line" | cut -f 2)
+					size=$(echo "$line" | cut -f 3)
+					device_list+=($name)
+					device_list+=("$model ($size)")
+				done <<<"$device_output"
+				DISK=$(whiptail --nocancel --menu "Choose a disk to install to:" 20 50 5 "${device_list[@]}" 3>&1 1>&2 2>&3)
+			else
+				echo "specified disk is '$DISK'"
+			fi
             echo "Checking for existing FRZR deployments"
             # Checking for existing installation
 
             if (lsblk -o label ${DISK} | grep -q frzr_efi); then
                 echo "Existing installation found"
 
-                if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
-                    echo "User chose to do a repair install"
+                if [ "$REPAIR_INSTALL" = "1"]; then
                     REPAIR_INSTALL=1
                     STATE="REPAIR"
-                else
-                    echo "User chose to do a clean install"
+                elif [ "$REPAIR_INSTALL" = "0"]; then
                     STATE="FORMAT"
+                else
+                    if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
+                        echo "User chose to do a repair install"
+                        REPAIR_INSTALL=1
+                        STATE="REPAIR"
+                    else
+                        echo "User chose to do a clean install"
+                        STATE="FORMAT"
+                    fi
                 fi
             else
                 echo "Existing installation not found"

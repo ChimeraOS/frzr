@@ -52,15 +52,14 @@ frzr_unlock() {
             done
 
             # keep only the first param as source
-            FRZR_SOURCE="${FRZR_PARAMS%% *}"
-            if frzr-release > /dev/null; then
-                CURRENT=`frzr-release`
-            fi
+            if "${BASH_SOURCE%/*}/frzr-release" > /dev/null; then
+				CURRENT=$("${BASH_SOURCE%/*}/frzr-release")
+			fi
             
             STATE="BEGIN"
             ;;
         "BEGIN")
-            FRZR_VERSION=$(frzr-version)
+            FRZR_VERSION=$("${BASH_SOURCE%/*}/frzr-version")
             if echo "${FRZR_VERSION}" | grep -Fq "ERROR"; then
                 TASK_ERROR=1
                 TASK_ERROR_MSG="Could not fetch frzr version: ${FRZR_VERSION}"
@@ -73,7 +72,6 @@ frzr_unlock() {
             # this code is based on the fact that when a btrfs filesystem is created
             # the default subvolid that is created contextually has the ID set to 256
             # also as a matter of fact in btrfs is impossible to change subvolumes IDs
-            MOUNT_PATH="/frzr_root"
             if ! mountpoint -q "${MOUNT_PATH}" && ls -1 /dev/disk/by-label | grep frzr_root > /dev/null; then
                 MOUNT_PATH="/tmp/frzr_root"
                 #TASK_MSG="Preparing '${MOUNT_PATH}' to be used as the main subvolume mount path"
@@ -122,17 +120,24 @@ frzr_unlock() {
             STATE="UNLOCK"
             ;;
         "UNLOCK")
-            # set rootfs btrfs subvolume to read-write mode
-            UNLOCK_RESULT=$(execute_unlock "${NAME}" "${SUBVOL}" "${MOUNT_PATH}" "${FRZR_VERSION}")
-            if echo "${UNLOCK_RESULT}" | grep -Fq 'ERROR'; then
-                echo "frzr deployment ${NAME} unlock failed: ${UNLOCK_RESULT}"
+            if [ -d "${SUBVOL}/usr/lib/frzr.d" ]; then
+                # set rootfs btrfs subvolume to read-write mode
+                UNLOCK_RESULT=$(execute_unlock "${NAME}" "${SUBVOL}" "${MOUNT_PATH}" "${FRZR_VERSION}")
+                if echo "${UNLOCK_RESULT}" | grep -Fq 'ERROR'; then
+                    echo "frzr deployment ${NAME} unlock failed: ${UNLOCK_RESULT}"
+                    STATE="FAIL"
+                    continue
+                fi
+
+                systemctl daemon-reload
+
+                STATE="SUCCESS"
+            else
+                TASK_ERROR=1
+                TASK_ERROR_MSG="Could not find unlock migrations for deployment '${NAME}', '${SUBVOL}/usr/lib/frzr.d' does not exists"
                 STATE="FAIL"
                 continue
             fi
-
-            systemctl daemon-reload
-
-            STATE="SUCCESS"
             ;;
         "SUCCESS")
             # This state should only be used if the unlock completed without errors

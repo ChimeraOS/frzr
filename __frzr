@@ -48,7 +48,7 @@ write_tracker_file() {
 	local running_user=$(whoami)
 	if [ ! -f "${TRACKER_FILE_PATH}" ]; then
 		touch "${TRACKER_FILE_PATH}"
-		chown :frzr "${TRACKER_FILE_PATH}"
+		chown $UID:379 "${TRACKER_FILE_PATH}"
 		chmod g+w "${TRACKER_FILE_PATH}"
 	fi
 
@@ -308,18 +308,30 @@ install_image() {
 
 	if [ -d "${deploy_path}" ]; then
 		if [[ "${IMG_FILE##*.}" == "img" ]]; then
-			btrfs receive --quiet ${DEPLOY_PATH} <${IMG_FILE}
-			echo "OK"
+			if btrfs receive --quiet "${DEPLOY_PATH}" < "${IMG_FILE}"; then
+			    echo "OK"
+            else
+                echo "ERROR: Could not install raw image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+            fi
 		elif [[ "${IMG_FILE##*.}" == "zst" ]]; then
-			zstd -d -c ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-			echo "OK"
+			if zstd -d -c "${IMG_FILE}" | btrfs receive --quiet "${DEPLOY_PATH}"; then
+			    echo "OK"
+            else
+                echo "ERROR: Could not install zstd image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+            fi
 		elif [[ "${IMG_FILE##*.}" == "xz" ]]; then
 			if [[ "${IMG_FILE}" == *".tar.xz" ]]; then
-				tar xfO ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-				echo "OK"
+				if tar xfO ${IMG_FILE} | btrfs receive --quiet "${DEPLOY_PATH}"; then
+				    echo "OK"
+                else
+                    echo "ERROR: Could not install tar.xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+                fi
 			else
-				xz -dc ${IMG_FILE} | btrfs receive --quiet ${DEPLOY_PATH}
-				echo "OK"
+				if xz -dc "${IMG_FILE}" | btrfs receive --quiet "${DEPLOY_PATH}"; then
+				    echo "OK"
+                else
+                    echo "ERROR: Could not install xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+                fi
 			fi
 		else
 			echo "ERROR: Unsupported file format for file '${IMG_FILE}'"

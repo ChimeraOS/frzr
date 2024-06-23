@@ -38,16 +38,19 @@ frzr_deploy() {
 				continue
 			fi
 
-			TASK_MSG="Checking if the system has booted via UEFI"
-			send_data
-			check_uefi_result=$(check_uefi)
-			if echo "${check_uefi_result}" | grep -Fq 'ERROR'; then
-				TASK_ERROR=1
-				TASK_ERROR_MSG="UEFI boot check failed: ${check_uefi_result}"
-				STATE="FAIL"
-				send_data
-				continue
-			fi
+            # Since this code is tested in GitHub CI it is important to to disable the UEFI test in that scenario
+            if [ -z "${SKIP_UEFI_CHECK}" ]; then
+                TASK_MSG="Checking if the system has booted via UEFI"
+                send_data
+                check_uefi_result=$(check_uefi)
+                if echo "${check_uefi_result}" | grep -Fq 'ERROR'; then
+                    TASK_ERROR=1
+                    TASK_ERROR_MSG="UEFI boot check failed: ${check_uefi_result}"
+                    STATE="FAIL"
+                    send_data
+                    continue
+                fi
+            fi
 			
 			# Check if any updates are available and preserve FRZR parameters
 			while (("$#")); do
@@ -75,8 +78,8 @@ frzr_deploy() {
 
 			# keep only the first param as source
 			FRZR_SOURCE="${FRZR_PARAMS%% *}"
-			if frzr-release > /dev/null; then
-				CURRENT=`frzr-release`
+			if "${BASH_SOURCE%/*}/frzr-release" > /dev/null; then
+				CURRENT=$("${BASH_SOURCE%/*}/frzr-release")
 			fi
 
 			STATE="BEGIN"
@@ -85,7 +88,7 @@ frzr_deploy() {
 			TASK_STATE="BEGIN"
 			send_data
 			
-			local version=$(frzr-version)
+			local version=$("${BASH_SOURCE%/*}/frzr-version")
 			if echo "${version}" | grep -Fq "ERROR"; then
 				TASK_ERROR=1
 				TASK_ERROR_MSG="Could not fetch frzr version: ${version}"
@@ -98,8 +101,7 @@ frzr_deploy() {
 			# this code is based on the fact that when a btrfs filesystem is created
 			# the default subvolid that is created contextually has the ID set to 256
 			# also as a matter of fact in btrfs is impossible to change subvolumes IDs
-			MOUNT_PATH="/frzr_root"
-			if mount | grep -Fq "${MOUNT_PATH}"; then
+			if mount | grep -Fq "on ${MOUNT_PATH}"; then
 				local MOUNTED_MOUNT_PATH="no"
 			else
 				MOUNT_PATH="/tmp/frzr_root"
@@ -135,12 +137,9 @@ frzr_deploy() {
 			fi
 
 			# Make sure the EFI partition is mounted during the deployment procedure
-			EFI_MOUNT_PATH="${MOUNT_PATH}/efi"
-
 			TASK_MSG="Preparing '${EFI_MOUNT_PATH}' to be used as the EFI System path"
 			send_data
-
-			if mount | grep -Fq "${EFI_MOUNT_PATH}"; then
+			if mount | grep -Fq "on ${EFI_MOUNT_PATH}"; then
 				local MOUNTED_EFI_MOUNT_PATH="no"
 			else
 				mkdir -p "${EFI_MOUNT_PATH}"
@@ -170,7 +169,6 @@ frzr_deploy() {
 				TASK_WARNING=1
 				TASK_WARNING_MSG="Could not retrieve deployment to keep: ${CURRENT}"
 				send_data
-				continue
 			fi
 
 			local default_btrfs_subvolid_cmd_res=$(btrfs subvolume get-default "${MOUNT_PATH}")
@@ -182,7 +180,7 @@ frzr_deploy() {
 							local removal_deployment=$(basename "${deployment_to_be_removed}")
 							local removal_deployment_subvolid=$(btrfs_subvol_get_id "${deployment_to_be_removed}")
 
-							if echo "${removal_deployment}" | grep -Fq "${CURRENT}"; then
+							if echo "${removal_deployment}" | grep -Fq "${CURRENT}" && ! echo "${CURRENT}" | grep -Fq "ERROR"; then
 								TASK_MSG="Deployment '${removal_deployment}' will be kept: is the current deployment"
 								send_data
 							elif echo "${removal_deployment_subvolid}" | grep -Fq "ERROR"; then
@@ -212,16 +210,18 @@ frzr_deploy() {
 								done
 
 								# Execute deployment removal scripts
-								TASK_MSG="Executing removal hooks"
-								send_data
-								local deployment_removal_hooks=$(execute_removal "${removal_deployment}" "${deployment_to_be_removed}" "${MOUNT_PATH}" "${version}")
-								if echo "${deployment_removal_hooks}" | grep -Fq "ERROR"; then
-									TASK_ERROR=1
-									TASK_ERROR_MSG="Removal hook on subvolume '${deployment_to_be_removed}' failed: ${deployment_removal_hooks}"
-									STATE="FAIL"
-									send_data
-									continue
-								fi
+                                if [ -d "${deployment_to_be_removed}/usr/lib/frzr.d" ]; then
+                                    TASK_MSG="Executing removal hooks"
+                                    send_data
+                                    local deployment_removal_hooks=$(execute_removal "${removal_deployment}" "${deployment_to_be_removed}" "${MOUNT_PATH}" "${version}")
+                                    if echo "${deployment_removal_hooks}" | grep -Fq "ERROR"; then
+                                        TASK_ERROR=1
+                                        TASK_ERROR_MSG="Removal hook on subvolume '${deployment_to_be_removed}' failed: ${deployment_removal_hooks}"
+                                        STATE="FAIL"
+                                        send_data
+                                        continue
+                                    fi
+                                fi
 
 								# Delete the deployment btrfs subvolume
 								local deployment_removal_result=$(btrfs_subvolume_simple_delete "${DEPLOY_PATH}/${removal_deployment}")
@@ -266,6 +266,11 @@ frzr_deploy() {
 				SUBVOL="${DEPLOY_PATH}/${NAME}"
 				IMG_FILE="/root/tmp_source/${FILE_NAME}"
 			elif [[ "$FRZR_SOURCE" == *".img.tar.xz" ]]; then
+				FILE_NAME=$(basename ${FRZR_SOURCE})
+				NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
+				SUBVOL="${DEPLOY_PATH}/${NAME}"
+				IMG_FILE="${FRZR_SOURCE}"
+            elif [[ "$FRZR_SOURCE" == *".img.xz" ]]; then
 				FILE_NAME=$(basename ${FRZR_SOURCE})
 				NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 				SUBVOL="${DEPLOY_PATH}/${NAME}"
@@ -361,21 +366,32 @@ frzr_deploy() {
 			STATE="CHECKSUM"
 			;;
 		"CHECKSUM")
+			# If the image is a local one try to fetch its sha256sum
+            if [ -z "$EXPECTED_CHECKSUM" ] && [ -f "${IMG_FILE}.sha256" ]; then
+                EXPECTED_CHECKSUM=$(cat "${IMG_FILE}.sha256")
+            fi
+
 			TASK_STATE="CHECKSUM"
 			TASK_MSG="Verifying if checksums match"
 			send_data
 			ACTUAL_CHECKSUM=$(sha256sum "${IMG_FILE}" | cut -d' ' -f 1)
-			if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-				rm -f "${IMG_FILE}"
+            if [ ! -z "$EXPECTED_CHECKSUM" ]; then
+                if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+                    rm -f "${IMG_FILE}"
 
-				# We can attempt to redownload the image again here instead of aborting like the original behavior
-				TASK_ERROR=1
-				TASK_ERROR_MSG="Checksum does not match"
-				STATE="FAIL"
+                    # We can attempt to redownload the image again here instead of aborting like the original behavior
+                    TASK_ERROR=1
+                    TASK_ERROR_MSG="Checksum does not match"
+                    STATE="FAIL"
+                    send_data
+                    continue
+                fi
+            else
+                TASK_WARNING=1
+				TASK_WARNING_MSG="Could not fetch the deployment checksum"
 				send_data
-				continue
-			fi
-			TASK_TRACKER=1 # Tell any listeners this task was completed, I'm not sure this variable will be needed in the end
+            fi
+            TASK_TRACKER=1 # Tell any listeners this task was completed, I'm not sure this variable will be needed in the end
 			send_data
 
 			STATE="EXTRACT"
@@ -489,7 +505,7 @@ frzr_deploy() {
 			send_data
 
 			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
-			local efi_update_result=$(frzr-bootloader "${NAME}")
+			local efi_update_result=$("${BASH_SOURCE%/*}/frzr-bootloader" "${NAME}")
 			if echo "${efi_update_result}" | grep -Fq 'ERROR'; then
 				# bootloader configuration could not be updated
 				TASK_ERROR=1
