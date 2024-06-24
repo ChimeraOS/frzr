@@ -1,0 +1,258 @@
+#! /bin/bash
+
+# import methods
+source "${BASH_SOURCE%/*}/__frzr" "$@"
+
+frzr_bootloader() {
+    NAME=${1}
+
+    # by default the deployment is the running one
+    DEPLOY_PATH="/"
+    SUBVOL="/"
+
+	local RUNNING=true
+    RUNNING=true
+	STATE="BEGIN"
+	while $RUNNING; do
+		case "$STATE" in
+		"BEGIN")
+			# If the image is being built skip the bootloader generation
+			if [ ! -z "${FRZR_IMAGE_GENERATION}" ]; then
+				STATE="SUCCESS"
+				continue
+			fi
+
+			TASK_MSG="Checking for root privileges"
+			send_data
+			if [ $EUID -ne 0 ]; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="$(basename $0) not run as root"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			# Make sure the frzr_root is mounted during the deployment procedure
+			# this code is based on the fact that when a btrfs filesystem is created
+			# the default subvolid that is created contextually has the ID set to 256
+			# also as a matter of fact in btrfs is impossible to change subvolumes IDs
+			if mount | grep -Fq "on ${MOUNT_PATH}"; then
+				local MOUNTED_MOUNT_PATH="no"
+			else
+				MOUNT_PATH="/tmp/frzr_root"
+				TASK_MSG="Preparing '${MOUNT_PATH}' to be used as the main subvolume mount path"
+				send_data
+				mkdir -p "${MOUNT_PATH}"
+				if mount -L frzr_root -t btrfs -o subvolid=5,rw "${MOUNT_PATH}"; then
+					local MOUNTED_MOUNT_PATH="yes"
+				else
+					local MOUNTED_MOUNT_PATH="no"
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not bind ${MOUNT_PATH} to frzr_root main subvolume"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+				sleep 5
+			fi
+
+			# Make sure the EFI partition is mounted during the deployment procedure
+            TASK_MSG="Checking for EFI partition"
+			send_data
+			if mount | grep -Fq "on ${EFI_MOUNT_PATH}"; then
+				local MOUNTED_EFI_MOUNT_PATH="no"
+			else
+				mkdir -p "${EFI_MOUNT_PATH}"
+				if mount -L frzr_efi -o uid=0,gid=0,fmask=0077,dmask=0077 "${EFI_MOUNT_PATH}"; then
+					local MOUNTED_EFI_MOUNT_PATH="yes"
+				else
+					local MOUNTED_EFI_MOUNT_PATH="no"
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not bind ${EFI_MOUNT_PATH} to frzr_efi (boot) partition"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+				sleep 5
+			fi
+
+			STATE="CHECK"
+			;;
+
+        "CHECK")
+            if [ -z "$NAME" ]; then
+                if [ -e "/build_info" ]; then
+	                NAME=$(cat "/build_info" | head -1)
+                fi
+
+                if [ -z "$NAME" ]; then
+                    TASK_ERROR_MSG="Could not fetch deployment name"
+                    STATE="FAIL"
+					send_data
+                    continue
+                fi
+            else
+                DEPLOY_PATH="${MOUNT_PATH}/deployments"
+                SUBVOL="${DEPLOY_PATH}/${NAME}"
+
+                # Make sure DEPLOY_PATH exists
+                mkdir -p "${DEPLOY_PATH}"
+                if [ ! -d "${DEPLOY_PATH}" ]; then
+                    TASK_ERROR=1
+                    TASK_ERROR_MSG="Could not create ${DEPLOY_PATH} to to store deployments"
+                    STATE="FAIL"
+					send_data
+                    continue
+                fi
+                
+                # Make sure SUBVOL exists
+                if [ ! -d "${SUBVOL}" ]; then
+                    TASK_ERROR=1
+                    TASK_ERROR_MSG="Could not find deployment '${NAME}', '${SUBVOL}' was searched"
+                    STATE="FAIL"
+					send_data
+                    continue
+                fi
+            fi
+
+            STATE="BOOTLOADER"
+            ;;
+
+		"BOOTLOADER")
+
+			# Check if a (supported) bootloader is present and if not install it
+
+			# Install systemd-boot as the bootloader
+			if [ ! -f "${EFI_MOUNT_PATH}/EFI/systemd/systemd-bootx64.efi" ]; then
+				TASK_MSG="Installing systemd-boot to '${EFI_MOUNT_PATH}' as the bootloader"
+				if ! bootctl --esp-path="${EFI_MOUNT_PATH}/" install; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not install systemd-boot to '${EFI_MOUNT_PATH}'"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+			fi
+
+			STATE="CONFIGURE"
+            ;;
+
+		"CONFIGURE")
+            # Get the rootfs UUID: this will be used in generating the systemd-boot entry
+			TASK_MSG="Finding deployment partition UUID"
+			local rootfs_uuid=$(get_uuid "${SUBVOL}")
+			if echo "$rootfs_uuid" | grep -Fq "ERROR"; then
+				local rootfs_uuid=""
+				TASK_WARNING=1
+				TASK_WARNING_MSG="Could not find rootfs UUID of the new deployment -- gpt-auto will be used"
+				send_data
+			fi
+
+			# Get the subvolid: this will be used in generating the systemd-boot entry and setting is as the default for the automatic boot
+			TASK_MSG="Finding deployment subvolume ID"
+			local rootfs_subvolid=$(btrfs_subvol_get_id "${SUBVOL}")
+			if echo "$subvolid" | grep -Fq "ERROR"; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find subvolume ID of the new deployment"
+				STATE="FAIL"
+				send_data
+				continue
+            elif [ "${rootfs_subvolid}" = "5" ]; then
+                TASK_ERROR_MSG="Could not identify the correct subvolid of the running deployment"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+			# Read additional boot arguments (to be added to the kernel cmdline) from the deployed image
+			local deployment_arguments=""
+			if [ -f "${SUBVOL}/usr/lib/frzr.d/bootconfig.conf" ]; then
+				local bootconf_args=$(cat "${SUBVOL}/usr/lib/frzr.d/bootconfig.conf") 
+				deployment_arguments="$deployment_arguments ${bootconf_args}"
+			else
+				TASK_WARNING=1
+				TASK_WARNING_MSG="Could not read '${SUBVOL}/usr/lib/frzr.d/bootconfig.conf': default kernel cmdline will be used"
+				send_data
+			fi
+
+			# Read additional boot arguments (to be added to the kernel cmdline) from the user file
+			local additional_arguments="$deployment_arguments"
+			if [ -f "${EFI_MOUNT_PATH}/frzr_bootconfig.conf" ]; then
+				local user_bootconf_args=$(cat "${EFI_MOUNT_PATH}/frzr_bootconfig.conf") 
+				additional_arguments="$additional_arguments ${user_bootconf_args}"
+			else
+				TASK_WARNING=1
+				TASK_WARNING_MSG="Could not read '${EFI_MOUNT_PATH}/frzr_bootconfig.conf': deployment cmdline will be used"
+				send_data
+			fi
+
+			# Make sure the deployment has a /boot directory
+			if [ ! -d "${SUBVOL}/boot" ]; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find the deployment /boot directory: '${SUBVOL}/boot' not found"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+            # This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
+			local efi_update_result=$(prepare_efi_partition "${NAME}" "${EFI_MOUNT_PATH}" "${SUBVOL}/boot" "${additional_arguments}" "${rootfs_uuid}" "${rootfs_subvolid}")
+			if echo "${efi_update_result}" | grep -q 'ERROR'; then
+				# bootloader configuration could not be updated
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not update the EFI partition: ${efi_update_result}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
+            STATE="SUCCESS"
+            ;;
+            
+		"SUCCESS")
+			# This state should only be used if the unlock completed without errors
+			#TASK_STATE="SUCCESS"
+
+			if [ ! -z "${FRZR_IMAGE_GENERATION}" ]; then
+				echo "bootloader configuration update skipped"
+			else
+				echo "bootloader configuration update success"
+			fi
+
+			RUNNING=false
+			;;
+		"FAIL")
+			# This state should only be used if the unlock failed
+
+			#TASK_STATE="FAIL"
+
+			echo "ERROR: frzr-bootloader failed: ${TASK_ERROR_MSG}"
+			TASK_ERROR=1
+			send_data
+			RUNNING=false
+			;;
+		*)
+			TASK_STATE="UNKNOWN_ERROR"
+
+			echo "ERROR: Something went terribly wrong in $(basename $0)"
+			TASK_ERROR=1
+			send_data
+			RUNNING=false
+			;;
+		esac
+	done
+
+	# umount the efi path
+	if [ "${MOUNTED_EFI_MOUNT_PATH}" = "yes" ]; then
+		if mountpoint -q "${EFI_MOUNT_PATH}"; then
+			umount -l "${EFI_MOUNT_PATH}"
+		fi
+	fi
+
+	# umount the frzr_root subvolume (if it was mounted by this tool and not externally)
+	if [ "${MOUNTED_MOUNT_PATH}" = "yes" ]; then
+		if mountpoint -q "${MOUNT_PATH}"; then
+			umount -l "${MOUNT_PATH}"
+		fi
+	fi
+}

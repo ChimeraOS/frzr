@@ -1,0 +1,30 @@
+#! /bin/bash
+
+if [ $EUID -ne 0 ]; then
+    echo "$(basename $0) must be run as root"
+    exit 1
+fi
+
+# Define the list of packages to be installed
+PACKAGES=(
+    "DECKY"
+    "EMUDECK"
+    # Add more packages here as needed
+)
+
+# Iterate over each package
+for PACKAGE in "${PACKAGES[@]}"; do
+    case "$PACKAGE" in
+    "DECKY")
+        COMMAND='
+curl -L https://github.com/SteamDeckHomebrew/decky-installer/releases/latest/download/install_release.sh | sh
+'
+        ;;
+    "EMUDECK")
+        COMMAND=''
+        # Add more cases for other packages here
+        ;;
+    esac
+
+    frzr_chroot "${SUBVOL}" "$COMMAND"
+done

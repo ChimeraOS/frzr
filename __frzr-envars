@@ -1,0 +1,57 @@
+#! /bin/bash
+
+# This is the FRZR global variable manifest to be used for early declarlation of variables to be logged
+
+# Define all public variables to be used here and in all sourced scripts
+# Check for exported variables provided by an installer script
+if [ -z $TARGET ]; then
+    TARGET="" # Set to the target deployment channel. This should only be set by the installer script
+fi
+
+if [ -z "$LOCAL_INSTALL" ]; then
+    LOCAL_INSTALL=0 # Set to 1 to perform a local media install. This should be set by the installer script
+fi
+
+UPGRADE=0
+
+if [ -z "$REPAIR_INSTALL" ]; then
+    REPAIR_INSTALL=0 # Set to 1 if you want to do a repair install. This should be set by frzr-bootstrap later if an existing install is found.
+fi
+
+NAME=""          # Name of the OS to be deployed
+
+if [ -z "$MOUNT_PATH" ]; then
+    MOUNT_PATH="/frzr_root"    # This is set as /tmp/frzr_root/ in the installer and /frzr_root during upgrades
+fi
+
+if [ -z "$EFI_MOUNT_PATH" ]; then
+    EFI_MOUNT_PATH="${MOUNT_PATH}/efi" # EFI mount path
+fi
+
+SUBVOL=""
+DEPLOY_PATH="" # ${MOUNT_PATH}/deployments
+FRZR_CHECK_UPDATE=0
+FRZR_PARAMS=""
+FILE_NAME="" # The file name downloaded from the repo
+IMG_NAME=""  # Path to the downloaded image to be deployed. It gets set by "${MOUNT_PATH}/${FILE_NAME}"
+BASE_URL=""
+REPO=""    # Github repo
+CHANNEL="" # The target channel to download the image from. Stable/Testing/Unstable
+RELEASES_URL=""
+EXPECTED_CHECKSUM="" # Expected checksum value of downloaded file
+ACTUAL_CHECKSUM=""   # Actual checksum of the file downloaded
+STATE=""
+
+# Tracker file directory
+TRACKER_FILE_DIR="/tmp"
+TRACKER_FILE_PATH="${TRACKER_FILE_DIR}/frzr.tracker"
+
+# Signals
+TASK_STATE=""
+TASK_MSG=""         # TASK_MSG will be read by external tools. EX TASK_MSG="Preparing user directory"
+TASK_TRACKER=0      # TASK_TRACKER will be used to signal back that the current TASK_MSG in queue is handled or not 0 = Pending 1 = Completed
+TASK_ERROR=0        # Signal to let listeners know that the task had an error.
+TASK_ERROR_MSG=""   # Error message. EX: "Unexpected I/O errors found during write"
+TASK_WARNING=0      # Signal to let listeners know there is a warning
+TASK_WARNING_MSG="" # Warning message. EX: "BTRFS filesystem was supposed to be locked, but it was already unlocked. Continuing.."
+TASK_PROGRESS=0     # Use this whenever we want to send progress to the GUI in the form of whole number percentages
