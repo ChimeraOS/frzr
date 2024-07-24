@@ -65,7 +65,7 @@ fi
 ls -lah "$MOUNT_PATH/deployments"
 
 # deploy chimeraos-45-1_9a95912
-bash /workdir/frzr deploy chimeraos/chimeraos:45_1
+bash /workdir/frzr deploy chimeraos/chimeraos:45-1
 
 if [ -d "$MOUNT_PATH/deployments/chimeraos-44_c3670dd" ] || [ ! -d "$MOUNT_PATH/deployments/chimeraos-45_1e44050" ] || [ ! -d "$MOUNT_PATH/deployments/chimeraos-45-1_9a95912" ]; then
     exit 1
