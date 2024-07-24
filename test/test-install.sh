@@ -40,7 +40,7 @@ export FRZR_SKIP_CHECK="yes"
 export SYSTEMD_RELAX_ESP_CHECKS=1
 
 # deploy chimeraos-45-1_9a95912
-bash /workdir/frzr deploy chimeraos/chimeraos:45_1
+bash /workdir/frzr deploy chimeraos/chimeraos:45-1
 
 # old releases used an older frzr
 INSTALLED_RELEASE=$(cat "$MOUNT_PATH/deployments/chimeraos-45-1_9a95912/build_info" | head -n 1)
