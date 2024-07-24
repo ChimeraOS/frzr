@@ -1,0 +1,10 @@
+#! /bin/bash
+
+source "${BASH_SOURCE%/*}/__frzr-bootloader"
+
+# TODO: check the file lock exists
+
+frzr_bootloader "$@"
+RESULT=$?
+
+exit $RESULT

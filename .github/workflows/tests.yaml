@@ -6,10 +6,35 @@ jobs:
   test:
 
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
+    - name: Maximize build space
+      run: |
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/share/swift
+        sudo rm -rf /usr/share/java
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache
+        sudo rm -rf /opt/az
+        df -h
     - uses: actions/checkout@v3
+    - name: Fix files permission
+      run: |
+        chmod +x frzr* __frzr*
     - name: Run tests
       run: |
         cd test
         ./run.sh
+    - name: Test Deployment creation & installation
+      run: |
+        docker run --name test_deploy -u root --rm --entrypoint=/workdir/test/test-deploy.sh -v $(pwd):/workdir -v /dev:/dev --privileged archlinux:latest
+    - name: Test Install
+      run: |
+        docker run --name test_install -u root --rm --entrypoint=/workdir/test/test-install.sh -v $(pwd):/workdir -v /dev:/dev --privileged archlinux:latest
+    - name: Test Removal
+      run: |
+        docker run --name test_removal -u root --rm --entrypoint=/workdir/test/test-removal.sh -v $(pwd):/workdir -v /dev:/dev --privileged archlinux:latest
+

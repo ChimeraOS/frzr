@@ -1,0 +1,10 @@
+#! /bin/bash
+
+set -e
+
+# import methods
+#source "${BASH_SOURCE%/*}/__frzr" "$@"
+
+frzr_version() {
+    echo "1.0.0"
+}
