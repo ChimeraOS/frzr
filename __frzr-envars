@@ -5,27 +5,27 @@
 # Define all public variables to be used here and in all sourced scripts
 # Check for exported variables provided by an installer script
 if [ -z $TARGET ]; then
-    TARGET="" # Set to the target deployment channel. This should only be set by the installer script
+	TARGET="" # Set to the target deployment channel. This should only be set by the installer script
 fi
 
 if [ -z "$LOCAL_INSTALL" ]; then
-    LOCAL_INSTALL=0 # Set to 1 to perform a local media install. This should be set by the installer script
+	LOCAL_INSTALL=0 # Set to 1 to perform a local media install. This should be set by the installer script
 fi
 
 UPGRADE=0
 
 if [ -z "$REPAIR_INSTALL" ]; then
-    REPAIR_INSTALL=0 # Set to 1 if you want to do a repair install. This should be set by frzr-bootstrap later if an existing install is found.
+	REPAIR_INSTALL=0 # Set to 1 if you want to do a repair install. This should be set by frzr-bootstrap later if an existing install is found.
 fi
 
 NAME=""          # Name of the OS to be deployed
 
 if [ -z "$MOUNT_PATH" ]; then
-    MOUNT_PATH="/frzr_root"    # This is set as /tmp/frzr_root/ in the installer and /frzr_root during upgrades
+	MOUNT_PATH="/frzr_root"    # This is set as /tmp/frzr_root/ in the installer and /frzr_root during upgrades
 fi
 
 if [ -z "$EFI_MOUNT_PATH" ]; then
-    EFI_MOUNT_PATH="${MOUNT_PATH}/efi" # EFI mount path
+	EFI_MOUNT_PATH="${MOUNT_PATH}/efi" # EFI mount path
 fi
 
 SUBVOL=""

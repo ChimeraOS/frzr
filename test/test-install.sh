@@ -52,5 +52,5 @@ losetup -d "$MOUNTED_DEVICE"
 rm -f $BUILD_IMG
 
 if ! echo "$INSTALLED_RELEASE" | grep -Fq "chimeraos-45"; then
-    exit 1
+	exit 1
 fi

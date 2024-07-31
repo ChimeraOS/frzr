@@ -235,22 +235,22 @@ fresh_install() {
 }
 
 frzr_bootstrap() {
-    RUNNING=true
+	RUNNING=true
 
-    # Check for the GUI installer
-    if [ -n "$1" ] && [ -n "$2" ]; then
-        STATE="FORMAT"
-        MOUNT_PATH=/tmp/frzr_root
-    else
-        STATE="FRZR_BOOTSTRAP_CHECK"
-    fi
+	# Check for the GUI installer
+	if [ -n "$1" ] && [ -n "$2" ]; then
+		STATE="FORMAT"
+		MOUNT_PATH=/tmp/frzr_root
+	else
+		STATE="FRZR_BOOTSTRAP_CHECK"
+	fi
 
-    TASK_TRACKER=0
-    TASK_MSG="Bootstrapping the drive for the FRZR system"
-    send_data
-    while $RUNNING; do
-        case "$STATE" in
-        "FRZR_BOOTSTRAP_CHECK")
+	TASK_TRACKER=0
+	TASK_MSG="Bootstrapping the drive for the FRZR system"
+	send_data
+	while $RUNNING; do
+		case "$STATE" in
+		"FRZR_BOOTSTRAP_CHECK")
 		
 			TASK_MSG="Checking for root privileges"
 			send_data
@@ -262,9 +262,9 @@ frzr_bootstrap() {
 				continue
 			fi
 
-            echo "Checking for drives connected to the system"
-            MOUNT_PATH=/tmp/frzr_root
-            if [ -z "${DISK}" ]; then
+			echo "Checking for drives connected to the system"
+			MOUNT_PATH=/tmp/frzr_root
+			if [ -z "${DISK}" ]; then
 				device_list=()
 				device_output=$(lsblk --list -n -o name,model,size,type | grep disk | tr -s ' ' '\t')
 				while read -r line; do
@@ -278,85 +278,85 @@ frzr_bootstrap() {
 			else
 				echo "specified disk is '$DISK'"
 			fi
-            echo "Checking for existing FRZR deployments"
-            # Checking for existing installation
+			echo "Checking for existing FRZR deployments"
+			# Checking for existing installation
 
-            if (lsblk -o label ${DISK} | grep -q frzr_efi); then
-                echo "Existing installation found"
+			if (lsblk -o label ${DISK} | grep -q frzr_efi); then
+				echo "Existing installation found"
 
-                if [ "$REPAIR_INSTALL" = "1"]; then
-                    REPAIR_INSTALL=1
-                    STATE="REPAIR"
-                elif [ "$REPAIR_INSTALL" = "0"]; then
-                    STATE="FORMAT"
-                else
-                    if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
-                        echo "User chose to do a repair install"
-                        REPAIR_INSTALL=1
-                        STATE="REPAIR"
-                    else
-                        echo "User chose to do a clean install"
-                        STATE="FORMAT"
-                    fi
-                fi
-            else
-                echo "Existing installation not found"
-                STATE="FORMAT"
-            fi
-            ;;
-        "FORMAT")
-            echo "We are doing a fresh install"
-            USERNAME=user
+				if [ "$REPAIR_INSTALL" = "1"]; then
+					REPAIR_INSTALL=1
+					STATE="REPAIR"
+				elif [ "$REPAIR_INSTALL" = "0"]; then
+					STATE="FORMAT"
+				else
+					if (whiptail --yesno --yes-button "Repair" --no-button "Clean" "WARNING: $DISK appears to already have a system installed. Would you like to repair it or do a clean install?\n\nNOTE: A clean install will delete everything on the disk, but a repair install will preserve your user data." 13 70); then
+						echo "User chose to do a repair install"
+						REPAIR_INSTALL=1
+						STATE="REPAIR"
+					else
+						echo "User chose to do a clean install"
+						STATE="FORMAT"
+					fi
+				fi
+			else
+				echo "Existing installation not found"
+				STATE="FORMAT"
+			fi
+			;;
+		"FORMAT")
+			echo "We are doing a fresh install"
+			USERNAME=user
 
-            if [ ! -z $1 ]; then
-                USERNAME=$1
-            fi
+			if [ ! -z $1 ]; then
+				USERNAME=$1
+			fi
 
-            if [ ! -z $2 ]; then
-                DISK=$2
-            fi
+			if [ ! -z $2 ]; then
+				DISK=$2
+			fi
 
-            fresh_install "${DISK}" "${MOUNT_PATH}"
-            RESULT=$?
-            if [ $RESULT -eq 0 ]; then
-                STATE="SUCCESS"
-            else
-                STATE="FAIL"
-                TASK_ERROR_MSG="Fresh installation has failed"
-                continue
-            fi
-            ;;
-        "REPAIR")
-            echo "We are doing a repair install"
-            local repair_install_result=$(repair_install "${DISK}" "${MOUNT_PATH}")
-            if echo "$repair_install_result" | grep -Fq "OK"; then
-                STATE="SUCCESS"
-            else
-                STATE="FAIL"
-                TASK_ERROR_MSG="Repair installation has failed"
-                continue
-            fi
-            ;;
-        "SUCCESS")
-            echo "Successfully prepared the drive for an FRZR installation"
-            TASK_MSG="Successfully prepared the drive for an FRZR installation"
-            TASK_TRACKER=1
-            send_data
-            RUNNING=false
-            ;;
-        "FAIL")
-            echo "The bootstrap failed"
-            TASK_ERROR=1
-            send_data
-            RUNNING=false
-            ;;
-        *)
-            echo "Something went terribly wrong"
-            TASK_ERROR_MSG="Bootstrap hit an unexpected state"
-            TASK_ERROR=1
-            send_data
-            RUNNING=false
-            ;;
-        esac
-    done
+			fresh_install "${DISK}" "${MOUNT_PATH}"
+			RESULT=$?
+			if [ $RESULT -eq 0 ]; then
+				STATE="SUCCESS"
+			else
+				STATE="FAIL"
+				TASK_ERROR_MSG="Fresh installation has failed"
+				continue
+			fi
+			;;
+		"REPAIR")
+			echo "We are doing a repair install"
+			local repair_install_result=$(repair_install "${DISK}" "${MOUNT_PATH}")
+			if echo "$repair_install_result" | grep -Fq "OK"; then
+				STATE="SUCCESS"
+			else
+				STATE="FAIL"
+				TASK_ERROR_MSG="Repair installation has failed"
+				continue
+			fi
+			;;
+		"SUCCESS")
+			echo "Successfully prepared the drive for an FRZR installation"
+			TASK_MSG="Successfully prepared the drive for an FRZR installation"
+			TASK_TRACKER=1
+			send_data
+			RUNNING=false
+			;;
+		"FAIL")
+			echo "The bootstrap failed"
+			TASK_ERROR=1
+			send_data
+			RUNNING=false
+			;;
+		*)
+			echo "Something went terribly wrong"
+			TASK_ERROR_MSG="Bootstrap hit an unexpected state"
+			TASK_ERROR=1
+			send_data
+			RUNNING=false
+			;;
+		esac
+	done
 }
