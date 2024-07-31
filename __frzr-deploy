@@ -38,19 +38,19 @@ frzr_deploy() {
 				continue
 			fi
 
-            # Since this code is tested in GitHub CI it is important to to disable the UEFI test in that scenario
-            if [ -z "${SKIP_UEFI_CHECK}" ]; then
-                TASK_MSG="Checking if the system has booted via UEFI"
-                send_data
-                check_uefi_result=$(check_uefi)
-                if echo "${check_uefi_result}" | grep -Fq 'ERROR'; then
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="UEFI boot check failed: ${check_uefi_result}"
-                    STATE="FAIL"
-                    send_data
-                    continue
-                fi
-            fi
+			# Since this code is tested in GitHub CI it is important to to disable the UEFI test in that scenario
+			if [ -z "${SKIP_UEFI_CHECK}" ]; then
+				TASK_MSG="Checking if the system has booted via UEFI"
+				send_data
+				check_uefi_result=$(check_uefi)
+				if echo "${check_uefi_result}" | grep -Fq 'ERROR'; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="UEFI boot check failed: ${check_uefi_result}"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+			fi
 			
 			# Check if any updates are available and preserve FRZR parameters
 			while (("$#")); do
@@ -210,18 +210,18 @@ frzr_deploy() {
 								done
 
 								# Execute deployment removal scripts
-                                if [ -d "${deployment_to_be_removed}/usr/lib/frzr.d" ]; then
-                                    TASK_MSG="Executing removal hooks"
-                                    send_data
-                                    local deployment_removal_hooks=$(execute_removal "${removal_deployment}" "${deployment_to_be_removed}" "${MOUNT_PATH}" "${version}")
-                                    if echo "${deployment_removal_hooks}" | grep -Fq "ERROR"; then
-                                        TASK_ERROR=1
-                                        TASK_ERROR_MSG="Removal hook on subvolume '${deployment_to_be_removed}' failed: ${deployment_removal_hooks}"
-                                        STATE="FAIL"
-                                        send_data
-                                        continue
-                                    fi
-                                fi
+								if [ -d "${deployment_to_be_removed}/usr/lib/frzr.d" ]; then
+									TASK_MSG="Executing removal hooks"
+									send_data
+									local deployment_removal_hooks=$(execute_removal "${removal_deployment}" "${deployment_to_be_removed}" "${MOUNT_PATH}" "${version}")
+									if echo "${deployment_removal_hooks}" | grep -Fq "ERROR"; then
+										TASK_ERROR=1
+										TASK_ERROR_MSG="Removal hook on subvolume '${deployment_to_be_removed}' failed: ${deployment_removal_hooks}"
+										STATE="FAIL"
+										send_data
+										continue
+									fi
+								fi
 
 								# Delete the deployment btrfs subvolume
 								local deployment_removal_result=$(btrfs_subvolume_simple_delete "${DEPLOY_PATH}/${removal_deployment}")
@@ -270,7 +270,7 @@ frzr_deploy() {
 				NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 				SUBVOL="${DEPLOY_PATH}/${NAME}"
 				IMG_FILE="${FRZR_SOURCE}"
-            elif [[ "$FRZR_SOURCE" == *".img.xz" ]]; then
+			elif [[ "$FRZR_SOURCE" == *".img.xz" ]]; then
 				FILE_NAME=$(basename ${FRZR_SOURCE})
 				NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
 				SUBVOL="${DEPLOY_PATH}/${NAME}"
@@ -346,13 +346,13 @@ frzr_deploy() {
 					wget ${IMG_URL} -O ${IMG_FILE} -o /tmp/wget_output.log & pid=$!;
 					previous_percentage=-1;
 					while [ -e /proc/$pid ]; do
-					    percentage=$(awk '/[0-9]+%/{print substr($7, 1, length($7)-1)}' /tmp/wget_output.log | tail -n 1);
-					    if [[ $percentage =~ ^[0-9]+$ && $percentage -ne $previous_percentage ]]; then
+						percentage=$(awk '/[0-9]+%/{print substr($7, 1, length($7)-1)}' /tmp/wget_output.log | tail -n 1);
+						if [[ $percentage =~ ^[0-9]+$ && $percentage -ne $previous_percentage ]]; then
 							previous_percentage=$percentage;
 							TASK_PROGRESS=$percentage
 							send_data
-					    fi;
-					    sleep 1;
+						fi;
+						sleep 1;
 					done
 				else
 					TASK_MSG="Using Whiptail to show download progress"
@@ -367,31 +367,31 @@ frzr_deploy() {
 			;;
 		"CHECKSUM")
 			# If the image is a local one try to fetch its sha256sum
-            if [ -z "$EXPECTED_CHECKSUM" ] && [ -f "${IMG_FILE}.sha256" ]; then
-                EXPECTED_CHECKSUM=$(cat "${IMG_FILE}.sha256")
-            fi
+			if [ -z "$EXPECTED_CHECKSUM" ] && [ -f "${IMG_FILE}.sha256" ]; then
+				EXPECTED_CHECKSUM=$(cat "${IMG_FILE}.sha256")
+			fi
 
 			TASK_STATE="CHECKSUM"
 			TASK_MSG="Verifying if checksums match"
 			send_data
 			ACTUAL_CHECKSUM=$(sha256sum "${IMG_FILE}" | cut -d' ' -f 1)
-            if [ ! -z "$EXPECTED_CHECKSUM" ]; then
-                if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-                    rm -f "${IMG_FILE}"
+			if [ ! -z "$EXPECTED_CHECKSUM" ]; then
+				if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+					rm -f "${IMG_FILE}"
 
-                    # We can attempt to redownload the image again here instead of aborting like the original behavior
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Checksum does not match"
-                    STATE="FAIL"
-                    send_data
-                    continue
-                fi
-            else
-                TASK_WARNING=1
+					# We can attempt to redownload the image again here instead of aborting like the original behavior
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Checksum does not match"
+					STATE="FAIL"
+					send_data
+					continue
+				fi
+			else
+				TASK_WARNING=1
 				TASK_WARNING_MSG="Could not fetch the deployment checksum"
 				send_data
-            fi
-            TASK_TRACKER=1 # Tell any listeners this task was completed, I'm not sure this variable will be needed in the end
+			fi
+			TASK_TRACKER=1 # Tell any listeners this task was completed, I'm not sure this variable will be needed in the end
 			send_data
 
 			STATE="EXTRACT"
@@ -536,8 +536,8 @@ frzr_deploy() {
 				STATE="FAIL"
 				send_data
 				continue
-            elif [ "${subvolid}" = "5" ]; then
-                TASK_ERROR_MSG="Invalid deployment subvolid"
+			elif [ "${subvolid}" = "5" ]; then
+				TASK_ERROR_MSG="Invalid deployment subvolid"
 				STATE="FAIL"
 				send_data
 				continue

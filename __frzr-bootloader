@@ -4,14 +4,14 @@
 source "${BASH_SOURCE%/*}/__frzr" "$@"
 
 frzr_bootloader() {
-    NAME=${1}
+	NAME=${1}
 
-    # by default the deployment is the running one
-    DEPLOY_PATH="/"
-    SUBVOL="/"
+	# by default the deployment is the running one
+	DEPLOY_PATH="/"
+	SUBVOL="/"
 
 	local RUNNING=true
-    RUNNING=true
+	RUNNING=true
 	STATE="BEGIN"
 	while $RUNNING; do
 		case "$STATE" in
@@ -57,7 +57,7 @@ frzr_bootloader() {
 			fi
 
 			# Make sure the EFI partition is mounted during the deployment procedure
-            TASK_MSG="Checking for EFI partition"
+			TASK_MSG="Checking for EFI partition"
 			send_data
 			if mount | grep -Fq "on ${EFI_MOUNT_PATH}"; then
 				local MOUNTED_EFI_MOUNT_PATH="no"
@@ -79,44 +79,44 @@ frzr_bootloader() {
 			STATE="CHECK"
 			;;
 
-        "CHECK")
-            if [ -z "$NAME" ]; then
-                if [ -e "/build_info" ]; then
-	                NAME=$(cat "/build_info" | head -1)
-                fi
+		"CHECK")
+			if [ -z "$NAME" ]; then
+				if [ -e "/build_info" ]; then
+					NAME=$(cat "/build_info" | head -1)
+				fi
 
-                if [ -z "$NAME" ]; then
-                    TASK_ERROR_MSG="Could not fetch deployment name"
-                    STATE="FAIL"
+				if [ -z "$NAME" ]; then
+					TASK_ERROR_MSG="Could not fetch deployment name"
+					STATE="FAIL"
 					send_data
-                    continue
-                fi
-            else
-                DEPLOY_PATH="${MOUNT_PATH}/deployments"
-                SUBVOL="${DEPLOY_PATH}/${NAME}"
+					continue
+				fi
+			else
+				DEPLOY_PATH="${MOUNT_PATH}/deployments"
+				SUBVOL="${DEPLOY_PATH}/${NAME}"
 
-                # Make sure DEPLOY_PATH exists
-                mkdir -p "${DEPLOY_PATH}"
-                if [ ! -d "${DEPLOY_PATH}" ]; then
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Could not create ${DEPLOY_PATH} to to store deployments"
-                    STATE="FAIL"
+				# Make sure DEPLOY_PATH exists
+				mkdir -p "${DEPLOY_PATH}"
+				if [ ! -d "${DEPLOY_PATH}" ]; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not create ${DEPLOY_PATH} to to store deployments"
+					STATE="FAIL"
 					send_data
-                    continue
-                fi
-                
-                # Make sure SUBVOL exists
-                if [ ! -d "${SUBVOL}" ]; then
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Could not find deployment '${NAME}', '${SUBVOL}' was searched"
-                    STATE="FAIL"
+					continue
+				fi
+				
+				# Make sure SUBVOL exists
+				if [ ! -d "${SUBVOL}" ]; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not find deployment '${NAME}', '${SUBVOL}' was searched"
+					STATE="FAIL"
 					send_data
-                    continue
-                fi
-            fi
+					continue
+				fi
+			fi
 
-            STATE="BOOTLOADER"
-            ;;
+			STATE="BOOTLOADER"
+			;;
 
 		"BOOTLOADER")
 
@@ -135,10 +135,10 @@ frzr_bootloader() {
 			fi
 
 			STATE="CONFIGURE"
-            ;;
+			;;
 
 		"CONFIGURE")
-            # Get the rootfs UUID: this will be used in generating the systemd-boot entry
+			# Get the rootfs UUID: this will be used in generating the systemd-boot entry
 			TASK_MSG="Finding deployment partition UUID"
 			local rootfs_uuid=$(get_uuid "${SUBVOL}")
 			if echo "$rootfs_uuid" | grep -Fq "ERROR"; then
@@ -157,8 +157,8 @@ frzr_bootloader() {
 				STATE="FAIL"
 				send_data
 				continue
-            elif [ "${rootfs_subvolid}" = "5" ]; then
-                TASK_ERROR_MSG="Could not identify the correct subvolid of the running deployment"
+			elif [ "${rootfs_subvolid}" = "5" ]; then
+				TASK_ERROR_MSG="Could not identify the correct subvolid of the running deployment"
 				STATE="FAIL"
 				send_data
 				continue
@@ -195,7 +195,7 @@ frzr_bootloader() {
 				continue
 			fi
 
-            # This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
+			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
 			local efi_update_result=$(prepare_efi_partition "${NAME}" "${EFI_MOUNT_PATH}" "${SUBVOL}/boot" "${additional_arguments}" "${rootfs_uuid}" "${rootfs_subvolid}")
 			if echo "${efi_update_result}" | grep -q 'ERROR'; then
 				# bootloader configuration could not be updated
@@ -206,9 +206,9 @@ frzr_bootloader() {
 				continue
 			fi
 
-            STATE="SUCCESS"
-            ;;
-            
+			STATE="SUCCESS"
+			;;
+			
 		"SUCCESS")
 			# This state should only be used if the unlock completed without errors
 			#TASK_STATE="SUCCESS"

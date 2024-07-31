@@ -3,12 +3,12 @@
 set -Ee
 
 if ! groups | grep -Fq "frzr"; then
-    if [ "$EUID" -ne 0 ]; then
-        echo "Current user is not in the frzr group"
-        exit 1
-    else
-        echo "Running frzr as root, but root is not a member of frzr group"
-    fi
+	if [ "$EUID" -ne 0 ]; then
+		echo "Current user is not in the frzr group"
+		exit 1
+	else
+		echo "Running frzr as root, but root is not a member of frzr group"
+	fi
 fi
 
 # Import methods
@@ -18,7 +18,7 @@ source "${BASH_SOURCE%/*}/__frzr" "$@"
 write_tracker_file
 
 usage(){
-    echo "[Usage]
+	echo "[Usage]
 frzr deploy [Check for system updates and update the system if available]
 frzr bootloader [Install the bootloader and create entries for every deployed image]
 frzr unlock (deployment) [Unlock the specified deployment, or the running one if deployment is not specified]
@@ -33,25 +33,25 @@ frzr bootstrap [Format and configure a drive to be used with FRZR]"
 
 # Catch unexpected errors and give feedback
 handle_error() {
-    local function_name="$1"
-    local line_number="$2"
-    local command="$3"
+	local function_name="$1"
+	local line_number="$2"
+	local command="$3"
 
-    echo "Error occurred in function '${function_name}' on line ${line_number}. Command: '${command}'"
+	echo "Error occurred in function '${function_name}' on line ${line_number}. Command: '${command}'"
 
-    frzr_status
+	frzr_status
 
-    if [ -f /tmp/frzr.lock ]; then
-        rm /tmp/frzr.lock
-    fi
+	if [ -f /tmp/frzr.lock ]; then
+		rm /tmp/frzr.lock
+	fi
 }
 
 # Set up trap to catch errors and call handle_error function
 trap 'handle_error "${FUNCNAME[0]}" "$LINENO" "$BASH_COMMAND"' ERR
 
 if [ $# -eq 0 ]; then
-    usage
-    exit 1
+	usage
+	exit 1
 fi
 
 function=$1
@@ -60,95 +60,95 @@ arg2=$3
 arg3=$4
 
 if [ $function == "-h" ] || [ $function == "help" ]; then
-    usage
+	usage
 elif [ $function == "bootstrap" ]; then
-    source "${BASH_SOURCE%/*}/frzr-bootstrap" "${arg1}" "${arg2}" "${arg3}" # username, disk, clean/repair install
-    RESULT=$?
-    exit $RESULT
+	source "${BASH_SOURCE%/*}/frzr-bootstrap" "${arg1}" "${arg2}" "${arg3}" # username, disk, clean/repair install
+	RESULT=$?
+	exit $RESULT
 elif [ $function == "deploy" ]; then
-    frzr_check_bootenv
-    # We don't want to pass the function parameter to __frzr-deploy
-    shift
-    #flock -E 255 -n /tmp/frzr.lock "frzr-deploy" "$@"
-    source "${BASH_SOURCE%/*}/frzr-deploy" "$@"
-    RESULT=$TASK_ERROR
-    #if [ $RESULT == 255 ]; then
-    #    echo "ERROR: $(basename $0) is already running"
-    #fi
-    exit $RESULT
+	frzr_check_bootenv
+	# We don't want to pass the function parameter to __frzr-deploy
+	shift
+	#flock -E 255 -n /tmp/frzr.lock "frzr-deploy" "$@"
+	source "${BASH_SOURCE%/*}/frzr-deploy" "$@"
+	RESULT=$TASK_ERROR
+	#if [ $RESULT == 255 ]; then
+	#    echo "ERROR: $(basename $0) is already running"
+	#fi
+	exit $RESULT
 elif [ $function == "unlock" ]; then
-    frzr_check_bootenv
-    # We don't want to pass the function parameter to __frzr-unlock
-    shift
-    #flock -E 255 -n /tmp/frzr.lock "frzr-depunlockloy" "$@"
-    source "${BASH_SOURCE%/*}/frzr-unlock" "$@"
-    RESULT=$TASK_ERROR
-    #if [ $RESULT == 255 ]; then
-    #    echo "ERROR: $(basename $0) is already running"
-    #fi
-    exit $RESULT
+	frzr_check_bootenv
+	# We don't want to pass the function parameter to __frzr-unlock
+	shift
+	#flock -E 255 -n /tmp/frzr.lock "frzr-depunlockloy" "$@"
+	source "${BASH_SOURCE%/*}/frzr-unlock" "$@"
+	RESULT=$TASK_ERROR
+	#if [ $RESULT == 255 ]; then
+	#    echo "ERROR: $(basename $0) is already running"
+	#fi
+	exit $RESULT
 elif [ $function == "bootloader" ]; then
-    frzr_check_bootenv
-    # We don't want to pass the function parameter to __frzr-bootloader
-    shift
+	frzr_check_bootenv
+	# We don't want to pass the function parameter to __frzr-bootloader
+	shift
 
-    #flock -E 255 -n /tmp/frzr.lock "frzr-bootloader" "$@"
-    source "${BASH_SOURCE%/*}/frzr-bootloader" "$@"
-    RESULT=$?
+	#flock -E 255 -n /tmp/frzr.lock "frzr-bootloader" "$@"
+	source "${BASH_SOURCE%/*}/frzr-bootloader" "$@"
+	RESULT=$?
 
-    #if [ $RESULT == 255 ]; then
-    #    echo "ERROR: $(basename $0) is already running"
-    #fi
+	#if [ $RESULT == 255 ]; then
+	#    echo "ERROR: $(basename $0) is already running"
+	#fi
 
-    exit $RESULT
+	exit $RESULT
 elif [ $function == "kernel" ]; then
-    frzr_check_bootenv
-    # We don't want to pass the function parameter to __frzr-kernel
-    shift
-    source "${BASH_SOURCE%/*}/frzr-kernel" "$@"
-    RESULT=$?
+	frzr_check_bootenv
+	# We don't want to pass the function parameter to __frzr-kernel
+	shift
+	source "${BASH_SOURCE%/*}/frzr-kernel" "$@"
+	RESULT=$?
 
-    #if [ $RESULT == 255 ]; then
-    #    echo "ERROR: $(basename $0) is already running"
-    #fi
+	#if [ $RESULT == 255 ]; then
+	#    echo "ERROR: $(basename $0) is already running"
+	#fi
 
-    exit $RESULT
+	exit $RESULT
 elif [ $function == "release" ]; then
-    source "${BASH_SOURCE%/*}/frzr-release" "$@"
+	source "${BASH_SOURCE%/*}/frzr-release" "$@"
 elif [ $function == "version" ]; then
-    frzr_check_bootenv
-    # We don't want to pass the function parameter to __frzr-version
-    shift
+	frzr_check_bootenv
+	# We don't want to pass the function parameter to __frzr-version
+	shift
 
-    #flock -E 255 -n /tmp/frzr.lock "frzr-version" "$@"
-    source "${BASH_SOURCE%/*}/frzr-version" "$@"
-    RESULT=$?
+	#flock -E 255 -n /tmp/frzr.lock "frzr-version" "$@"
+	source "${BASH_SOURCE%/*}/frzr-version" "$@"
+	RESULT=$?
 
-    #if [ $RESULT == 255 ]; then
-    #    echo "ERROR: $(basename $0) is already running"
-    #fi
+	#if [ $RESULT == 255 ]; then
+	#    echo "ERROR: $(basename $0) is already running"
+	#fi
 
-    exit $RESULT
+	exit $RESULT
 elif [ $function == "set-channel" ]; then
-    echo "set channel"
-    #TODO create frzr-channel to set target channel
-    #frzr-channel $arg1
+	echo "set channel"
+	#TODO create frzr-channel to set target channel
+	#frzr-channel $arg1
 elif [ $function == "get-channel" ]; then
-    echo "get-channel"
-    #TODO create frzr-channel to get target channel
-    #echo ${FRZR_ROOT}/source
+	echo "get-channel"
+	#TODO create frzr-channel to get target channel
+	#echo ${FRZR_ROOT}/source
 elif [ $function == "build-initramfs" ]; then
-    source frzr-initramfs
+	source frzr-initramfs
 elif [ $function == "configure-tweaks" ]; then
-    source frzr-tweaks
+	source frzr-tweaks
 elif [ $function == "package-options" ]; then
-    #User selected packages to be added to the install
-    source frzr-extras
+	#User selected packages to be added to the install
+	source frzr-extras
 else
-    echo "invalid argument"
+	echo "invalid argument"
 fi
 
 # print out the latest error in stderr (this is meant for debugging)
 if [ ! -z "${TASK_ERROR_MSG}" ]; then
-    echo "${TASK_ERROR_MSG}" 1>&2
+	echo "${TASK_ERROR_MSG}" 1>&2
 fi

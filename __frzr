@@ -4,39 +4,39 @@
 source "${BASH_SOURCE%/*}/__frzr-envars"
 
 frzr_status() {
-    # Output frzr status tracker using the JSON format
-    cat <<EOF
+	# Output frzr status tracker using the JSON format
+	cat <<EOF
 {
-    "Signals": {
-        "Task MSG": "$TASK_MSG",
-        "Task Tracker": "$TASK_TRACKER",
-        "Task Error": "$TASK_ERROR",
-        "Task Error MSG": "$TASK_ERROR_MSG",
-        "Task Warning": "$TASK_WARNING",
-        "Task Warning MSG": "$TASK_WARNING_MSG",
-        "Task Progress": "$TASK_PROGRESS",
-    },
-    "Globals": {
-        "Target": "$TARGET",
-        "Local Install": "$LOCAL_INSTALL",
-        "Repair Install": "$REPAIR_INSTALL",
-        "Show UI": "$SHOW_UI",
-        "EFI Path": "$EFI_MOUNT_PATH",
-        "Mount Path": "$MOUNT_PATH",
-        "SUBVOL": "$SUBVOL",
-        "Deploy Path": "$DEPLOY_PATH",
-        "Frzr Check Update": "$FRZR_CHECK_UPDATE",
-        "Frzr Params": "$FRZR_PARAMS",
-        "File Name": "$FILE_NAME",
-        "IMG Name": "$IMG_NAME",
-        "Base URL": "$BASE_URL",
-        "Repo": "$REPO",
-        "Release URL": "$RELEASES_URL",
-        "Expected Checksum": "$EXPECTED_CHECKSUM",
-        "Actual Checksum": "$ACTUAL_CHECKSUM",
-        "Channel": "$CHANNEL",
-        "State Machine State": "$STATE"
-    }
+	"Signals": {
+		"Task MSG": "$TASK_MSG",
+		"Task Tracker": "$TASK_TRACKER",
+		"Task Error": "$TASK_ERROR",
+		"Task Error MSG": "$TASK_ERROR_MSG",
+		"Task Warning": "$TASK_WARNING",
+		"Task Warning MSG": "$TASK_WARNING_MSG",
+		"Task Progress": "$TASK_PROGRESS",
+	},
+	"Globals": {
+		"Target": "$TARGET",
+		"Local Install": "$LOCAL_INSTALL",
+		"Repair Install": "$REPAIR_INSTALL",
+		"Show UI": "$SHOW_UI",
+		"EFI Path": "$EFI_MOUNT_PATH",
+		"Mount Path": "$MOUNT_PATH",
+		"SUBVOL": "$SUBVOL",
+		"Deploy Path": "$DEPLOY_PATH",
+		"Frzr Check Update": "$FRZR_CHECK_UPDATE",
+		"Frzr Params": "$FRZR_PARAMS",
+		"File Name": "$FILE_NAME",
+		"IMG Name": "$IMG_NAME",
+		"Base URL": "$BASE_URL",
+		"Repo": "$REPO",
+		"Release URL": "$RELEASES_URL",
+		"Expected Checksum": "$EXPECTED_CHECKSUM",
+		"Actual Checksum": "$ACTUAL_CHECKSUM",
+		"Channel": "$CHANNEL",
+		"State Machine State": "$STATE"
+	}
 }
 EOF
 }
@@ -61,20 +61,20 @@ send_data(){
 }
 
 frzr_check_bootenv() {
-    if [ -d /tmp/frzr_root ]; then
-        UPGRADE=0
-    else
-        UPGRADE=1
-    fi
+	if [ -d /tmp/frzr_root ]; then
+		UPGRADE=0
+	else
+		UPGRADE=1
+	fi
 }
 
 # Perform required mounts to have a working chroot environment
 # $1 the rootfs to be chrooted
 # stdout OK, an error otherwise
 frzr_mount_chroot() {
-    local CHROOT_PATH=$1
-    
-    if mount -t proc /proc "${CHROOT_PATH}/proc"; then
+	local CHROOT_PATH=$1
+	
+	if mount -t proc /proc "${CHROOT_PATH}/proc"; then
 		if mount -t sysfs /sys "${CHROOT_PATH}/sys"; then
 			if mount --rbind /dev "${CHROOT_PATH}/dev"; then
 				echo "OK"
@@ -91,20 +91,20 @@ frzr_mount_chroot() {
 
 frzr_exec_chroot() {
 	local CHROOT_PATH=$1
-    local CHROOT_CMD=$2
+	local CHROOT_CMD=$2
 
 	chroot ${CHROOT_PATH} /bin/bash <<EOF
-    ${CHROOT_CMD}
+	${CHROOT_CMD}
 EOF
 }
 
 frzr_umount_chroot() {
-    local CHROOT_PATH=$1
+	local CHROOT_PATH=$1
 
-    umount -l "${CHROOT_PATH}/proc"
-    umount -l "${CHROOT_PATH}/sys"
-    mount --make-rslave "${CHROOT_PATH}/dev"
-    umount -l "${CHROOT_PATH}/dev"
+	umount -l "${CHROOT_PATH}/proc"
+	umount -l "${CHROOT_PATH}/sys"
+	mount --make-rslave "${CHROOT_PATH}/dev"
+	umount -l "${CHROOT_PATH}/dev"
 }
 
 # Get the UUID of the desk containing the given directory
@@ -309,29 +309,29 @@ install_image() {
 	if [ -d "${deploy_path}" ]; then
 		if [[ "${IMG_FILE##*.}" == "img" ]]; then
 			if btrfs receive --quiet "${DEPLOY_PATH}" < "${IMG_FILE}"; then
-			    echo "OK"
-            else
-                echo "ERROR: Could not install raw image '${IMG_FILE}' to '${DEPLOY_PATH}'"
-            fi
+				echo "OK"
+			else
+				echo "ERROR: Could not install raw image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+			fi
 		elif [[ "${IMG_FILE##*.}" == "zst" ]]; then
 			if zstd -d -c "${IMG_FILE}" | btrfs receive --quiet "${DEPLOY_PATH}"; then
-			    echo "OK"
-            else
-                echo "ERROR: Could not install zstd image '${IMG_FILE}' to '${DEPLOY_PATH}'"
-            fi
+				echo "OK"
+			else
+				echo "ERROR: Could not install zstd image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+			fi
 		elif [[ "${IMG_FILE##*.}" == "xz" ]]; then
 			if [[ "${IMG_FILE}" == *".tar.xz" ]]; then
 				if tar xfO ${IMG_FILE} | btrfs receive --quiet "${DEPLOY_PATH}"; then
-				    echo "OK"
-                else
-                    echo "ERROR: Could not install tar.xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
-                fi
+					echo "OK"
+				else
+					echo "ERROR: Could not install tar.xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+				fi
 			else
 				if xz -dc "${IMG_FILE}" | btrfs receive --quiet "${DEPLOY_PATH}"; then
-				    echo "OK"
-                else
-                    echo "ERROR: Could not install xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
-                fi
+					echo "OK"
+				else
+					echo "ERROR: Could not install xz image '${IMG_FILE}' to '${DEPLOY_PATH}'"
+				fi
 			fi
 		else
 			echo "ERROR: Unsupported file format for file '${IMG_FILE}'"

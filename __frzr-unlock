@@ -6,20 +6,20 @@ set -o pipefail
 #source "${BASH_SOURCE%/*}/__frzr" "$@"
 
 frzr_unlock() {
-    # by default the deployment is the running one
-    # and NAME will be the result of frzr-release
-    DEPLOY_PATH="/"
-    SUBVOL="/"
-    NAME=""
+	# by default the deployment is the running one
+	# and NAME will be the result of frzr-release
+	DEPLOY_PATH="/"
+	SUBVOL="/"
+	NAME=""
 
-    RUNNING=true
-    STATE="FRZR_DEPLOY_CHECK"
-    while $RUNNING; do
-        case "$STATE" in
-        "FRZR_DEPLOY_CHECK")
-            TASK_STATE="CHECK"
+	RUNNING=true
+	STATE="FRZR_DEPLOY_CHECK"
+	while $RUNNING; do
+		case "$STATE" in
+		"FRZR_DEPLOY_CHECK")
+			TASK_STATE="CHECK"
 
-            TASK_MSG="Checking for root privileges"
+			TASK_MSG="Checking for root privileges"
 			send_data
 			if [ $EUID -ne 0 ]; then
 				TASK_ERROR=1
@@ -29,145 +29,145 @@ frzr_unlock() {
 				continue
 			fi
 
-            while (("$#")); do
-                case $1 in
-                #--check)
-                #	FRZR_CHECK_UPDATE=1
-                #	shift
-                #	;;
-                #--steam-progress)
-                #	FRZR_STEAM_PROGRESS=1
-                #	shift
-                #	;;
-                -* | --*)
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Unknown argument $1"
-                    STATE="FAIL"
-                    ;;
-                *)                               # preserve positional arguments
-                    FRZR_PARAMS="${FRZR_PARAMS}$1 " # Use trailing space for the match below
-                    shift
-                    ;;
-                esac
-            done
+			while (("$#")); do
+				case $1 in
+				#--check)
+				#	FRZR_CHECK_UPDATE=1
+				#	shift
+				#	;;
+				#--steam-progress)
+				#	FRZR_STEAM_PROGRESS=1
+				#	shift
+				#	;;
+				-* | --*)
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Unknown argument $1"
+					STATE="FAIL"
+					;;
+				*)                               # preserve positional arguments
+					FRZR_PARAMS="${FRZR_PARAMS}$1 " # Use trailing space for the match below
+					shift
+					;;
+				esac
+			done
 
-            # keep only the first param as source
-            if "${BASH_SOURCE%/*}/frzr-release" > /dev/null; then
+			# keep only the first param as source
+			if "${BASH_SOURCE%/*}/frzr-release" > /dev/null; then
 				CURRENT=$("${BASH_SOURCE%/*}/frzr-release")
 			fi
-            
-            STATE="BEGIN"
-            ;;
-        "BEGIN")
-            FRZR_VERSION=$("${BASH_SOURCE%/*}/frzr-version")
-            if echo "${FRZR_VERSION}" | grep -Fq "ERROR"; then
-                TASK_ERROR=1
-                TASK_ERROR_MSG="Could not fetch frzr version: ${FRZR_VERSION}"
-                STATE="FAIL"
-                send_data
-                continue
-            fi
-            
-            # Make sure the frzr_root is mounted during the deployment procedure
-            # this code is based on the fact that when a btrfs filesystem is created
-            # the default subvolid that is created contextually has the ID set to 256
-            # also as a matter of fact in btrfs is impossible to change subvolumes IDs
-            if ! mountpoint -q "${MOUNT_PATH}" && ls -1 /dev/disk/by-label | grep frzr_root > /dev/null; then
-                MOUNT_PATH="/tmp/frzr_root"
-                #TASK_MSG="Preparing '${MOUNT_PATH}' to be used as the main subvolume mount path"
-                mkdir -p ${MOUNT_PATH}
-                if mount -L frzr_root -t btrfs -o subvolid=5,rw "${MOUNT_PATH}"; then
-                    MOUNTED_MOUNT_PATH="yes"
-                fi
-                sleep 5
-            fi
+			
+			STATE="BEGIN"
+			;;
+		"BEGIN")
+			FRZR_VERSION=$("${BASH_SOURCE%/*}/frzr-version")
+			if echo "${FRZR_VERSION}" | grep -Fq "ERROR"; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not fetch frzr version: ${FRZR_VERSION}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+			
+			# Make sure the frzr_root is mounted during the deployment procedure
+			# this code is based on the fact that when a btrfs filesystem is created
+			# the default subvolid that is created contextually has the ID set to 256
+			# also as a matter of fact in btrfs is impossible to change subvolumes IDs
+			if ! mountpoint -q "${MOUNT_PATH}" && ls -1 /dev/disk/by-label | grep frzr_root > /dev/null; then
+				MOUNT_PATH="/tmp/frzr_root"
+				#TASK_MSG="Preparing '${MOUNT_PATH}' to be used as the main subvolume mount path"
+				mkdir -p ${MOUNT_PATH}
+				if mount -L frzr_root -t btrfs -o subvolid=5,rw "${MOUNT_PATH}"; then
+					MOUNTED_MOUNT_PATH="yes"
+				fi
+				sleep 5
+			fi
 
-            if mountpoint -q "${MOUNT_PATH}" && ls -1 /dev/disk/by-label | grep frzr_root > /dev/null; then
-                STATE="RELEASE_CHECK"
-            else
-                echo "frzr-unlock failed: could not mount frzr_root"
-                STATE="FAIL"
-                continue
-            fi
-            ;;
-        "RELEASE_CHECK")
-            # If this is user-specified we should unlock that deployment in particular
-            NAME="${FRZR_SOURCE}"
-            if [ -z "${NAME}" ]; then
-                NAME="${CURRENT}"
-            else
-                DEPLOY_PATH="${MOUNT_PATH}/deployments"
-                SUBVOL="${DEPLOY_PATH}/${NAME}"
+			if mountpoint -q "${MOUNT_PATH}" && ls -1 /dev/disk/by-label | grep frzr_root > /dev/null; then
+				STATE="RELEASE_CHECK"
+			else
+				echo "frzr-unlock failed: could not mount frzr_root"
+				STATE="FAIL"
+				continue
+			fi
+			;;
+		"RELEASE_CHECK")
+			# If this is user-specified we should unlock that deployment in particular
+			NAME="${FRZR_SOURCE}"
+			if [ -z "${NAME}" ]; then
+				NAME="${CURRENT}"
+			else
+				DEPLOY_PATH="${MOUNT_PATH}/deployments"
+				SUBVOL="${DEPLOY_PATH}/${NAME}"
 
-                # Make sure DEPLOY_PATH exists
-                mkdir -p "${DEPLOY_PATH}"
-                if [ ! -d "${DEPLOY_PATH}" ]; then
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Could not create ${DEPLOY_PATH} to to store deployments"
-                    STATE="FAIL"
-                    continue
-                fi
-                
-                # Make sure SUBVOL exists
-                if [ ! -d "${SUBVOL}" ]; then
-                    TASK_ERROR=1
-                    TASK_ERROR_MSG="Could not find deployment '${NAME}', '${SUBVOL}' was searched"
-                    STATE="FAIL"
-                    continue
-                fi
-            fi
-            
-            STATE="UNLOCK"
-            ;;
-        "UNLOCK")
-            if [ -d "${SUBVOL}/usr/lib/frzr.d" ]; then
-                # set rootfs btrfs subvolume to read-write mode
-                UNLOCK_RESULT=$(execute_unlock "${NAME}" "${SUBVOL}" "${MOUNT_PATH}" "${FRZR_VERSION}")
-                if echo "${UNLOCK_RESULT}" | grep -Fq 'ERROR'; then
-                    echo "frzr deployment ${NAME} unlock failed: ${UNLOCK_RESULT}"
-                    STATE="FAIL"
-                    continue
-                fi
+				# Make sure DEPLOY_PATH exists
+				mkdir -p "${DEPLOY_PATH}"
+				if [ ! -d "${DEPLOY_PATH}" ]; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not create ${DEPLOY_PATH} to to store deployments"
+					STATE="FAIL"
+					continue
+				fi
+				
+				# Make sure SUBVOL exists
+				if [ ! -d "${SUBVOL}" ]; then
+					TASK_ERROR=1
+					TASK_ERROR_MSG="Could not find deployment '${NAME}', '${SUBVOL}' was searched"
+					STATE="FAIL"
+					continue
+				fi
+			fi
+			
+			STATE="UNLOCK"
+			;;
+		"UNLOCK")
+			if [ -d "${SUBVOL}/usr/lib/frzr.d" ]; then
+				# set rootfs btrfs subvolume to read-write mode
+				UNLOCK_RESULT=$(execute_unlock "${NAME}" "${SUBVOL}" "${MOUNT_PATH}" "${FRZR_VERSION}")
+				if echo "${UNLOCK_RESULT}" | grep -Fq 'ERROR'; then
+					echo "frzr deployment ${NAME} unlock failed: ${UNLOCK_RESULT}"
+					STATE="FAIL"
+					continue
+				fi
 
-                systemctl daemon-reload
+				systemctl daemon-reload
 
-                STATE="SUCCESS"
-            else
-                TASK_ERROR=1
-                TASK_ERROR_MSG="Could not find unlock migrations for deployment '${NAME}', '${SUBVOL}/usr/lib/frzr.d' does not exists"
-                STATE="FAIL"
-                continue
-            fi
-            ;;
-        "SUCCESS")
-            # This state should only be used if the unlock completed without errors
-            #TASK_STATE="SUCCESS"
+				STATE="SUCCESS"
+			else
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not find unlock migrations for deployment '${NAME}', '${SUBVOL}/usr/lib/frzr.d' does not exists"
+				STATE="FAIL"
+				continue
+			fi
+			;;
+		"SUCCESS")
+			# This state should only be used if the unlock completed without errors
+			#TASK_STATE="SUCCESS"
 
-            echo "frzr deployment ${NAME} unlock succeeded, please reboot to use the unlocked deployment"
+			echo "frzr deployment ${NAME} unlock succeeded, please reboot to use the unlocked deployment"
 
-            RUNNING=false
-            ;;
-        "FAIL")
-            # This state should only be used if the unlock failed
+			RUNNING=false
+			;;
+		"FAIL")
+			# This state should only be used if the unlock failed
 
-            #TASK_STATE="FAIL"
+			#TASK_STATE="FAIL"
 
-            echo "frzr-unlock failed for deployment ${NAME}: ${UNLOCK_RESULT}"
+			echo "frzr-unlock failed for deployment ${NAME}: ${UNLOCK_RESULT}"
 
-            RUNNING=false
-            ;;
-        *)
-            TASK_STATE="UNKNOWN_ERROR"
-            echo "ERROR: Something went terribly wrong"
-            RUNNING=false
-            ;;
-        esac
-    done
+			RUNNING=false
+			;;
+		*)
+			TASK_STATE="UNKNOWN_ERROR"
+			echo "ERROR: Something went terribly wrong"
+			RUNNING=false
+			;;
+		esac
+	done
 
-    # umount the frzr_root subvolume (if it was mounted by this tool and not externally)
-    if [ "${MOUNTED_MOUNT_PATH}" = "yes" ]; then
-        if mountpoint -q "${MOUNT_PATH}"; then
-            umount -l "${MOUNT_PATH}"
-        fi
-    fi
+	# umount the frzr_root subvolume (if it was mounted by this tool and not externally)
+	if [ "${MOUNTED_MOUNT_PATH}" = "yes" ]; then
+		if mountpoint -q "${MOUNT_PATH}"; then
+			umount -l "${MOUNT_PATH}"
+		fi
+	fi
 }
