@@ -1,5 +1,10 @@
 #! /bin/bash
 
+if [ -z "$MOUNT_PATH" ]; then
+    echo "WARNING: frzr-unlock is being deprecated and will be removed on a future version: use frzr unlock instead. See frzr help."
+    exit 1
+fi
+
 source "${BASH_SOURCE%/*}/__frzr-unlock"
 
 # TODO: check the file lock exists
