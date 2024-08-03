@@ -76,6 +76,7 @@ if btrfs send $MOUNT_POINT/archlinux | xz -e -9 --memory=95% -T0 > $TARGET_FILEN
 	export SWAP_GIB=0
 	bash /workdir/frzr bootstrap
 
+	export SHOW_UI="0"
 	export SKIP_UEFI_CHECK="yes"
 	export MOUNT_PATH="/tmp/frzr_root"
 	export EFI_MOUNT_PATH="/tmp/frzr_root/efi"
