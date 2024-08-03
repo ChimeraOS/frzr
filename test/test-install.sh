@@ -36,7 +36,6 @@ bash /workdir/frzr bootstrap
 export SKIP_UEFI_CHECK="yes"
 export MOUNT_PATH="/tmp/frzr_root"
 export EFI_MOUNT_PATH="/tmp/frzr_root/efi"
-export FRZR_SKIP_CHECK="yes"
 export SYSTEMD_RELAX_ESP_CHECKS=1
 
 # deploy chimeraos-45-1_9a95912
