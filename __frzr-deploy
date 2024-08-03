@@ -489,7 +489,7 @@ frzr_deploy() {
 			# verify the subvolume integrity
 			TASK_MSG="Checking integrity of deployed image"
 			send_data
-			if [ -z "$FRZR_SKIP_CHECK" ]; then
+			if [ ! -z "$FRZR_SCRUB" ]; then
 				if ! btrfs scrub start -Bdr "${SUBVOL}"; then
 					TASK_ERROR=1
 					TASK_ERROR_MSG="FS check on btrfs subvolume '$SUBVOL' failed: image integrity compromised"
