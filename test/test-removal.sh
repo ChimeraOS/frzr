@@ -33,6 +33,7 @@ export DISK="$MOUNTED_DEVICE"
 export SWAP_GIB=0
 bash /workdir/frzr bootstrap
 
+export SHOW_UI="0"
 export SKIP_UEFI_CHECK="yes"
 export MOUNT_PATH="/tmp/frzr_root"
 export EFI_MOUNT_PATH="/tmp/frzr_root/efi"
