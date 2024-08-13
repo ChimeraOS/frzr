@@ -1,5 +1,10 @@
 #! /bin/bash
 
+if [ -z "$MOUNT_PATH" ]; then
+    echo "WARNING: frzr-bootstrap is being deprecated and will be removed on a future version: use frzr bootstrap instead. See frzr help."
+    exit 1
+fi
+
 source "${BASH_SOURCE%/*}/__frzr-bootstrap"
 
 # TODO: check the file lock exists
