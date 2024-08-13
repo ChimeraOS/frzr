@@ -337,7 +337,7 @@ frzr_deploy() {
 				if [ $FRZR_STEAM_PROGRESS -eq 1 ]; then
 					curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 |
 						stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 91 %
-				elif [ -z ${SHOW_UI} ]; then
+				elif [ "${SHOW_UI}" = "0" ] && [ "${FRZR_INSTALLER}" = "1" ]; then
 					# This will need to be put under a new variable if it passes testing because we want to have different
 					# logic depending if there is a Modern UI, legecy UI support, or if it is ran via CLI
 					TASK_MSG="Downloading Image"
@@ -354,6 +354,8 @@ frzr_deploy() {
 						fi;
 						sleep 1;
 					done
+				elif [ "${SHOW_UI}" = "0" ]; then
+					curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
 				else
 					TASK_MSG="Using Whiptail to show download progress"
 					send_data
@@ -412,7 +414,7 @@ frzr_deploy() {
 			fi
 
 			# Use BTRFS receive to install the image
-			if [ -z ${SHOW_UI} ]; then
+			if [ "${SHOW_UI}" = "0" ]; then
 				TASK_MSG="Installing image ${NAME}"
 				send_data
 			else
@@ -572,7 +574,7 @@ frzr_deploy() {
 
 			RUNNING=false
 
-			if [ -z ${SHOW_UI} ]; then
+			if [ "${SHOW_UI}" = "0" ]; then
 				echo "Deployment is successful: reboot to boot into ${NAME}"
 			else
 				whiptail --msgbox "Deployment is successful: reboot to boot into ${NAME}" 8 48
@@ -585,7 +587,7 @@ frzr_deploy() {
 			send_data
 			RUNNING=false
 
-			if [ -z ${SHOW_UI} ]; then
+			if [ "${SHOW_UI}" = "0" ]; then
 				echo "Deployment failed: ${TASK_ERROR_MSG}"
 			else
 				whiptail --msgbox "Deployment failed: ${TASK_ERROR_MSG}" 8 48

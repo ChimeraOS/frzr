@@ -21,6 +21,7 @@ frzr_status() {
 		"Local Install": "$LOCAL_INSTALL",
 		"Repair Install": "$REPAIR_INSTALL",
 		"Show UI": "$SHOW_UI",
+		"GUI Installer": "$FRZR_INSTALLER",
 		"EFI Path": "$EFI_MOUNT_PATH",
 		"Mount Path": "$MOUNT_PATH",
 		"SUBVOL": "$SUBVOL",
