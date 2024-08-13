@@ -15,7 +15,8 @@ fi
 source "${BASH_SOURCE%/*}/__frzr" "$@"
 
 usage(){
-	echo "[Usage]
+	echo "
+[Usage]
 frzr deploy [Check for system updates and update the system if available]
 frzr bootloader [Install the bootloader and create entries for every deployed image]
 frzr unlock (deployment) [Unlock the specified deployment, or the running one if deployment is not specified]
@@ -24,7 +25,129 @@ frzr get-channel [Get the update channel currently in use]
 frzr version [Get the version of FRZR]
 frzr build-initramfs [Build the initramfs for the kernel]
 frzr configure-tweaks [Configure system specific quirks]
-frzr bootstrap [Format and configure a drive to be used with FRZR]"
+frzr bootstrap [Format and configure a drive to be used with FRZR]
+
+[Environment]
+MOUNT_PATH: Path where the root partition should be mounted at
+MOUNT_EFI_PATH: Path where the EFI partition should be mounted at
+"
+}
+
+bootstrap_usage(){
+	echo "
+[Usage]
+frzr bootstrap [<username>] [<disk>]
+
+[Description]
+Format a disk and apply the correct layout to it so that it will be
+possible to deploy images on that disk.
+
+[Parameters]
+username: Name of the default user of the system.
+
+disk: Device frzr will bootstrap the system to.
+		If set no choice will be prompted to the user.
+
+[Environment]
+SWAP_GIB: The size of the swap partition in GiB, if unset a default will be picked.
+			If set to zero partition will not be created.
+
+ROOT_GIB: The size of the root partition in GiB, if unset 0 will be used.
+			If set to zero it will be merged with the home partition.
+
+SEPARATE_HOME_FS: can be either \"ext4\" or \"btrfs\" and will be applied only
+			when the root partition is not merged with the home partition.
+
+REPAIR_INSTALL: If set to one a repair install will be preferred
+			and the user will not be asked for it.
+
+[Example]
+SWAP_GIB=\"8\" frzr bootstrap gamer /dev/nvme0n1
+"
+}
+
+deploy_usage(){
+	echo "
+[Usage]
+frzr deploy <source>
+
+[Description]
+Download and install an operating system image.
+
+[Parameters]
+source: the source of the image to be deployed
+
+[Environment]
+FRZR_INSTALLER: This is to be set only if an automated tool is being used.
+
+SHOW_UI: This forced the tool to display a basic UI for the longest operations.
+
+FRZR_SCRUB: If set a btrfs scrub on the new deployment will be performed.
+
+[Example]
+FRZR_SCRUB=\"yes\" SHOW_UI=\"1\" frzr deploy chimeraos/chimeraos:stable
+"
+}
+
+unlock_usage(){
+	echo "
+[Usage]
+frzr unlock [<deployment>]
+
+[Description]
+Makes the deployed system R/W if it wasn't already.
+
+[Parameters]
+deployment: the deployment to be unlocked.
+				If not provided the running deployment will be selected.
+
+[Example]
+frzr unlock
+"
+}
+
+bootloader_usage(){
+	echo "
+[Usage]
+frzr bootloader [<deployment>]
+
+[Description]
+Install a supported bootloader if one is not installed already and
+regenerate bootloader entries for every installed kernel on the selected deployment.
+
+[Parameters]
+deployment: the deployment that will have boot entries regenerated.
+				If not provided the running deployment will be selected.
+
+[Example]
+frzr bootloader
+"
+}
+
+release_usage() {
+	echo "
+[Usage]
+frzr release
+
+[Description]
+Fetch the name of the currently running deployment.
+
+[Example]
+frzr release
+"
+}
+
+version_usage() {
+	echo "
+[Usage]
+frzr version
+
+[Description]
+Fetch the frzr version.
+
+[Example]
+frzr version
+"
 }
 
 # Catch unexpected errors and give feedback
@@ -55,64 +178,88 @@ arg1=$2
 arg2=$3
 arg3=$4
 
-if [ $function == "-h" ] || [ $function == "help" ]; then
+if [ $function == "-h" ] || [ $function == "help" ] || [ $function == "--help" ]; then
 	usage
 elif [ $function == "bootstrap" ]; then
-	source "${BASH_SOURCE%/*}/frzr-bootstrap" "${arg1}" "${arg2}" "${arg3}" # username, disk, clean/repair install
-	RESULT=$?
-	exit $RESULT
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		bootstrap_usage
+	else
+		source "${BASH_SOURCE%/*}/frzr-bootstrap" "${arg1}" "${arg2}" "${arg3}" # username, disk, clean/repair install
+		RESULT=$?
+		exit $RESULT
+	fi
 elif [ $function == "deploy" ]; then
-	frzr_check_bootenv
-	# We don't want to pass the function parameter to __frzr-deploy
-	shift
-	#flock -E 255 -n /tmp/frzr.lock "frzr-deploy" "$@"
-	source "${BASH_SOURCE%/*}/frzr-deploy" "$@"
-	RESULT=$TASK_ERROR
-	#if [ $RESULT == 255 ]; then
-	#    echo "ERROR: $(basename $0) is already running"
-	#fi
-	exit $RESULT
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		deploy_usage
+	else
+		frzr_check_bootenv
+		# We don't want to pass the function parameter to __frzr-deploy
+		shift
+		#flock -E 255 -n /tmp/frzr.lock "frzr-deploy" "$@"
+		source "${BASH_SOURCE%/*}/frzr-deploy" "$@"
+		RESULT=$TASK_ERROR
+		#if [ $RESULT == 255 ]; then
+		#    echo "ERROR: $(basename $0) is already running"
+		#fi
+		exit $RESULT
+	fi
 elif [ $function == "unlock" ]; then
-	frzr_check_bootenv
-	# We don't want to pass the function parameter to __frzr-unlock
-	shift
-	#flock -E 255 -n /tmp/frzr.lock "frzr-depunlockloy" "$@"
-	source "${BASH_SOURCE%/*}/frzr-unlock" "$@"
-	RESULT=$TASK_ERROR
-	#if [ $RESULT == 255 ]; then
-	#    echo "ERROR: $(basename $0) is already running"
-	#fi
-	exit $RESULT
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		unlock_usage
+	else
+		frzr_check_bootenv
+		# We don't want to pass the function parameter to __frzr-unlock
+		shift
+		#flock -E 255 -n /tmp/frzr.lock "frzr-depunlockloy" "$@"
+		source "${BASH_SOURCE%/*}/frzr-unlock" "$@"
+		RESULT=$TASK_ERROR
+		#if [ $RESULT == 255 ]; then
+		#    echo "ERROR: $(basename $0) is already running"
+		#fi
+		exit $RESULT
+	fi
 elif [ $function == "bootloader" ]; then
-	frzr_check_bootenv
-	# We don't want to pass the function parameter to __frzr-bootloader
-	shift
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		bootloader_usage
+	else
+		frzr_check_bootenv
+		# We don't want to pass the function parameter to __frzr-bootloader
+		shift
 
-	#flock -E 255 -n /tmp/frzr.lock "frzr-bootloader" "$@"
-	source "${BASH_SOURCE%/*}/frzr-bootloader" "$@"
-	RESULT=$?
+		#flock -E 255 -n /tmp/frzr.lock "frzr-bootloader" "$@"
+		source "${BASH_SOURCE%/*}/frzr-bootloader" "$@"
+		RESULT=$?
 
-	#if [ $RESULT == 255 ]; then
-	#    echo "ERROR: $(basename $0) is already running"
-	#fi
+		#if [ $RESULT == 255 ]; then
+		#    echo "ERROR: $(basename $0) is already running"
+		#fi
 
-	exit $RESULT
+		exit $RESULT
+	fi
 elif [ $function == "release" ]; then
-	source "${BASH_SOURCE%/*}/frzr-release" "$@"
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		release_usage
+	else
+		source "${BASH_SOURCE%/*}/frzr-release" "$@"
+	fi
 elif [ $function == "version" ]; then
-	frzr_check_bootenv
-	# We don't want to pass the function parameter to __frzr-version
-	shift
+	if [ "$arg1" == "-h" ] || [ "$arg1" == "help" ] || [ "$arg1" == "--help" ]; then
+		version_usage
+	else
+		frzr_check_bootenv
+		# We don't want to pass the function parameter to __frzr-version
+		shift
 
-	#flock -E 255 -n /tmp/frzr.lock "frzr-version" "$@"
-	source "${BASH_SOURCE%/*}/frzr-version" "$@"
-	RESULT=$?
+		#flock -E 255 -n /tmp/frzr.lock "frzr-version" "$@"
+		source "${BASH_SOURCE%/*}/frzr-version" "$@"
+		RESULT=$?
 
-	#if [ $RESULT == 255 ]; then
-	#    echo "ERROR: $(basename $0) is already running"
-	#fi
+		#if [ $RESULT == 255 ]; then
+		#    echo "ERROR: $(basename $0) is already running"
+		#fi
 
-	exit $RESULT
+		exit $RESULT
+	fi
 elif [ $function == "set-channel" ]; then
 	echo "set channel"
 	#TODO create frzr-channel to set target channel
