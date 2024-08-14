@@ -10,12 +10,13 @@ pacman-key --init
 pacman-key --populate archlinux
 pacman -Syu --noconfirm
 
-pacman -S --noconfirm parted btrfs-progs file libnewt dosfstools jq util-linux zstd xz curl wget arch-install-scripts
+pacman -S --noconfirm parted btrfs-progs file libnewt dosfstools jq util-linux zstd xz curl wget arch-install-scripts base-devel make git
 
 # Create the frzr group
 groupadd -g 379 frzr
 usermod -a -G frzr $(whoami)
 
+cd /workdir && VERSION="1.0.0" make install
 
 # Define variables
 export IMG_FILE="archlinux.img"
@@ -74,7 +75,7 @@ if btrfs send $MOUNT_POINT/archlinux | xz -e -9 --memory=95% -T0 > $TARGET_FILEN
 
 	export DISK="$MOUNTED_DEVICE"
 	export SWAP_GIB=0
-	bash /workdir/frzr bootstrap
+	frzr bootstrap
 
 	export SHOW_UI="0"
 	export SKIP_UEFI_CHECK="yes"
@@ -83,7 +84,7 @@ if btrfs send $MOUNT_POINT/archlinux | xz -e -9 --memory=95% -T0 > $TARGET_FILEN
 	export SYSTEMD_RELAX_ESP_CHECKS=1
 
 	# deploy archlinux
-	bash /workdir/frzr deploy $TARGET_FILENAME
+	frzr deploy $TARGET_FILENAME
 
 	# old releases used an older frzr
 	INSTALLED_RELEASE=$(cat "$MOUNT_PATH/deployments/archlinux/build_info" | head -n 1)

@@ -3,7 +3,9 @@ ifeq ($(PREFIX),)
     PREFIX := /
 endif
 
-VERSION := $(shell git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+ifeq ($(VERSION),)
+	VERSION := $(shell git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+endif
 
 .PHONY: install
 

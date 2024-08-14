@@ -10,11 +10,13 @@ pacman-key --init
 pacman-key --populate archlinux
 pacman -Syu --noconfirm
 
-pacman -S --noconfirm parted btrfs-progs file libnewt dosfstools jq util-linux zstd xz curl wget arch-install-scripts
+pacman -S --noconfirm parted btrfs-progs file libnewt dosfstools jq util-linux zstd xz curl wget arch-install-scripts base-devel make git
 
 # Create the frzr group
 groupadd -g 379 frzr
 usermod -a -G frzr $(whoami)
+
+cd /workdir && VERSION="1.0.0" make install
 
 export FILENAME=install_image.img
 export BUILD_DIR="/workdir/output"
@@ -31,7 +33,7 @@ MOUNTED_DEVICE=$(losetup -a | grep "$FILENAME" | cut -d ' ' -f 1 | sed 's/://')
 
 export DISK="$MOUNTED_DEVICE"
 export SWAP_GIB=0
-bash /workdir/frzr bootstrap
+frzr bootstrap
 
 export SHOW_UI="0"
 export SKIP_UEFI_CHECK="yes"
@@ -40,7 +42,7 @@ export EFI_MOUNT_PATH="/tmp/frzr_root/efi"
 export SYSTEMD_RELAX_ESP_CHECKS=1
 
 # deploy chimeraos-45-1_9a95912
-bash /workdir/frzr deploy chimeraos/chimeraos:45-1
+frzr deploy chimeraos/chimeraos:45-1
 
 # old releases used an older frzr
 INSTALLED_RELEASE=$(cat "$MOUNT_PATH/deployments/chimeraos-45-1_9a95912/build_info" | head -n 1)
