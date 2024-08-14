@@ -3,6 +3,8 @@ ifeq ($(PREFIX),)
     PREFIX := /
 endif
 
+VERSION := $(shell git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+
 .PHONY: install
 
 install:
@@ -25,3 +27,4 @@ install:
 	install -m 755 "frzr-source" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-extras" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-release" "${PREFIX}/usr/bin"
+	sed -i "s|1.0.0|${VERSION}|g" "${PREFIX}/usr/bin/__frzr-version"
