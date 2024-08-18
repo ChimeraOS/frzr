@@ -14,9 +14,6 @@ fi
 # Import methods
 source "${BASH_SOURCE%/*}/__frzr" "$@"
 
-# Create the tracker file before we start
-write_tracker_file
-
 usage(){
 	echo "[Usage]
 frzr deploy [Check for system updates and update the system if available]
