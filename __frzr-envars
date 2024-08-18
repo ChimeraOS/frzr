@@ -28,6 +28,10 @@ if [ -z "$EFI_MOUNT_PATH" ]; then
 	EFI_MOUNT_PATH="${MOUNT_PATH}/efi" # EFI mount path
 fi
 
+if [ -z "$SHOW_UI" ]; then
+	SHOW_UI="0"
+fi
+
 if [ -z "$FRZR_INSTALLER" ]; then
 	FRZR_INSTALLER="0"
 fi
