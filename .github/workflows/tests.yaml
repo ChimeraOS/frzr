@@ -28,6 +28,9 @@ jobs:
       run: |
         cd test
         ./run.sh
+    - name: Test Tracker file permissions
+      run: |
+        docker run --name test_tracker -u root --rm --entrypoint=/workdir/test/test-permissions.sh -v $(pwd):/workdir -v /dev:/dev --privileged archlinux:latest
     - name: Test Deployment creation & installation
       run: |
         docker run --name test_deploy -u root --rm --entrypoint=/workdir/test/test-deploy.sh -v $(pwd):/workdir -v /dev:/dev --privileged archlinux:latest

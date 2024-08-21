@@ -14,15 +14,11 @@ fi
 # Import methods
 source "${BASH_SOURCE%/*}/__frzr" "$@"
 
-# Create the tracker file before we start
-write_tracker_file
-
 usage(){
 	echo "[Usage]
 frzr deploy [Check for system updates and update the system if available]
 frzr bootloader [Install the bootloader and create entries for every deployed image]
 frzr unlock (deployment) [Unlock the specified deployment, or the running one if deployment is not specified]
-frzr kernel [Deploy a custom kernel]
 frzr set-channel [Set the update channel stable/testing/unstable]
 frzr get-channel [Get the update channel currently in use]
 frzr version [Get the version of FRZR]
@@ -94,18 +90,6 @@ elif [ $function == "bootloader" ]; then
 
 	#flock -E 255 -n /tmp/frzr.lock "frzr-bootloader" "$@"
 	source "${BASH_SOURCE%/*}/frzr-bootloader" "$@"
-	RESULT=$?
-
-	#if [ $RESULT == 255 ]; then
-	#    echo "ERROR: $(basename $0) is already running"
-	#fi
-
-	exit $RESULT
-elif [ $function == "kernel" ]; then
-	frzr_check_bootenv
-	# We don't want to pass the function parameter to __frzr-kernel
-	shift
-	source "${BASH_SOURCE%/*}/frzr-kernel" "$@"
 	RESULT=$?
 
 	#if [ $RESULT == 255 ]; then

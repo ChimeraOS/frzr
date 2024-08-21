@@ -3,7 +3,9 @@ ifeq ($(PREFIX),)
     PREFIX := /
 endif
 
-VERSION := $(shell git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+ifeq ($(VERSION),)
+	VERSION := $(shell git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+endif
 
 .PHONY: install
 
@@ -17,8 +19,6 @@ install:
 	install -m 755 "__frzr-unlock" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-bootloader" "${PREFIX}/usr/bin"
 	install -m 755 "__frzr-bootloader" "${PREFIX}/usr/bin"
-	install -m 755 "frzr-kernel" "${PREFIX}/usr/bin"
-	install -m 755 "__frzr-kernel" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-version" "${PREFIX}/usr/bin"
 	install -m 755 "__frzr-version" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-bootstrap" "${PREFIX}/usr/bin"

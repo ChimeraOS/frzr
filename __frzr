@@ -46,11 +46,28 @@ EOF
 trap frzr_status SIGINT SIGTERM ERR
 
 write_tracker_file() {
-	local running_user=$(whoami)
+	local grps=$(groups)
+
+	if [ ! -d "${TRACKER_FILE_DIR}" ]; then
+		if echo "$grps" | grep -Fq "frzr"; then
+			sg frzr -c "mkdir $TRACKER_FILE_DIR"
+		else
+			mkdir "${TRACKER_FILE_DIR}"
+			chmod g+w "${TRACKER_FILE_DIR}"
+			chown :frzr "${TRACKER_FILE_DIR}"
+		fi
+	fi
+
 	if [ ! -f "${TRACKER_FILE_PATH}" ]; then
-		touch "${TRACKER_FILE_PATH}"
-		chown $UID:379 "${TRACKER_FILE_PATH}"
-		chmod g+w "${TRACKER_FILE_PATH}"
+		if echo "$grps" | grep -Fq "frzr"; then
+			rm -f "${TRACKER_FILE_PATH}"
+			sg frzr -c "touch ${TRACKER_FILE_PATH}"
+		else
+			sudo rm -rf "${TRACKER_FILE_PATH}" 
+			sudo touch "${TRACKER_FILE_PATH}"
+			sudo chown :frzr "${TRACKER_FILE_PATH}"
+			sudo chmod g+w "${TRACKER_FILE_PATH}"
+		fi
 	fi
 
 	frzr_status > "${TRACKER_FILE_PATH}"
