@@ -355,7 +355,13 @@ frzr_deploy() {
 						sleep 1;
 					done
 				elif [ "${SHOW_UI}" = "0" ]; then
-					curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+					if ! curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"; then
+						TASK_ERROR=1
+						TASK_ERROR_MSG="Download failed"
+						STATE="FAIL"
+						send_data
+						continue
+					fi
 				else
 					TASK_MSG="Using Whiptail to show download progress"
 					send_data
