@@ -268,10 +268,6 @@ elif [ $function == "get-channel" ]; then
 	echo "get-channel"
 	#TODO create frzr-channel to get target channel
 	#echo ${FRZR_ROOT}/source
-elif [ $function == "build-initramfs" ]; then
-	source frzr-initramfs
-elif [ $function == "configure-tweaks" ]; then
-	source frzr-tweaks
 elif [ $function == "package-options" ]; then
 	#User selected packages to be added to the install
 	source frzr-extras
