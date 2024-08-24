@@ -789,6 +789,8 @@ prepare_efi_partition() {
 
 	local default_config_entry=""
 
+	local default_frzr_default_entry_filename="frzr.conf"
+
 	# create /loader/entries in the EFI system partition (if it does not exists already)
 	mkdir -p ${efi_mount_path}/loader/entries
 
@@ -860,7 +862,14 @@ prepare_efi_partition() {
 						if echo "${systemd_boot_update_result}" | grep -q 'ERROR'; then
 							echo "ERROR: Could not add bootloader entry: ${systemd_boot_update_result}"
 						else
-							default_boot_cfg="${boot_entry}"
+							# Write "${EFI_MOUNT_PATH}/loader/entries/${default_frzr_default_entry_filename}" so that frzr will make use of the new kernel
+							# WARNING: btrfs_rootfs_uuid being empty means gpt-auto will be used
+							local default_boot_entry_generation_res=$(generate_systemd_boot_cfg "${version}" "${default_frzr_default_entry_filename}" "${version}" "${efi_mount_path}" "${amd_ucode}" "${intel_ucode}" "${vmlinuz_file}" "${initramfs_file}" "${additional_arguments}" "" "")
+							if echo "${boot_entry_generation_res}" | grep -Fq "ERROR"; then
+								echo "ERROR: Could not add bootloader entry: ${default_boot_entry_generation_res}"
+							else
+								default_boot_cfg="${boot_entry}"
+							fi
 						fi
 					else
 						echo "ERROR: Could not copy '${boot_dir}/${initramfs_file}' to '${efi_mount_path}/${version}/${initramfs_file}'"
@@ -872,8 +881,8 @@ prepare_efi_partition() {
 		done
 
 		# override the default deployment boot with the user-provided one
-		if [ -f "${efi_mount_path}/loader/entries/frzr_kernel.conf" ]; then
-			default_boot_cfg="frzr_kernel.conf"
+		if [ -f "${efi_mount_path}/loader/entries/${default_frzr_default_entry_filename}" ]; then
+			default_boot_cfg="${default_frzr_default_entry_filename}"
 		fi
 
 		# write the default boot entry
@@ -881,12 +890,6 @@ prepare_efi_partition() {
 			echo "ERROR: no bootable kernel found"
 		else
 			echo "default ${default_boot_cfg}" > "${efi_mount_path}/loader/loader.conf"
-
-			# If frzr-kernel has been used this is a development machine: add a boot timeout so that different kernels can be used
-			if [ "${default_boot_cfg}" = "frzr_kernel.conf" ]; then
-				echo "timeout 3" >> "${efi_mount_path}/loader/loader.conf"
-			fi
-
 			echo "OK"
 		fi
 	fi
