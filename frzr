@@ -23,8 +23,6 @@ frzr unlock (deployment) [Unlock the specified deployment, or the running one if
 frzr set-channel [Set the update channel stable/testing/unstable]
 frzr get-channel [Get the update channel currently in use]
 frzr version [Get the version of FRZR]
-frzr build-initramfs [Build the initramfs for the kernel]
-frzr configure-tweaks [Configure system specific quirks]
 frzr bootstrap [Format and configure a drive to be used with FRZR]
 
 [Environment]
@@ -268,10 +266,6 @@ elif [ $function == "get-channel" ]; then
 	echo "get-channel"
 	#TODO create frzr-channel to get target channel
 	#echo ${FRZR_ROOT}/source
-elif [ $function == "build-initramfs" ]; then
-	source frzr-initramfs
-elif [ $function == "configure-tweaks" ]; then
-	source frzr-tweaks
 elif [ $function == "package-options" ]; then
 	#User selected packages to be added to the install
 	source frzr-extras
