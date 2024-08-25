@@ -119,10 +119,8 @@ frzr_bootloader() {
 			;;
 
 		"BOOTLOADER")
-
-			# Check if a (supported) bootloader is present and if not install it
-
-			# Install systemd-boot as the bootloader
+			# Check if a (supported) bootloader is present and if not
+			# install systemd-boot as the bootloader
 			if [ ! -f "${EFI_MOUNT_PATH}/EFI/systemd/systemd-bootx64.efi" ]; then
 				TASK_MSG="Installing systemd-boot to '${EFI_MOUNT_PATH}' as the bootloader"
 				if ! bootctl --esp-path="${EFI_MOUNT_PATH}/" install; then
@@ -164,25 +162,36 @@ frzr_bootloader() {
 				continue
 			fi
 
-			# Read additional boot arguments (to be added to the kernel cmdline) from the deployed image
+			# Initialize an empty deployment kernel cmdline
 			local deployment_arguments=""
+
+			# Read additional boot arguments (to be added to the kernel cmdline) from the deployed image
 			if [ -f "${SUBVOL}/usr/lib/frzr.d/bootconfig.conf" ]; then
-				local bootconf_args=$(cat "${SUBVOL}/usr/lib/frzr.d/bootconfig.conf") 
+				local bootconf_args=$(cat "${SUBVOL}/usr/lib/frzr.d/bootconfig.conf")
 				deployment_arguments="$deployment_arguments ${bootconf_args}"
 			else
 				TASK_WARNING=1
-				TASK_WARNING_MSG="Could not read '${SUBVOL}/usr/lib/frzr.d/bootconfig.conf': default kernel cmdline will be used"
+				TASK_WARNING_MSG="Could not read '${SUBVOL}/usr/lib/frzr.d/bootconfig.conf': skipped"
+				send_data
+			fi
+
+			# Read additional boot arguments (to be added to the kernel cmdline) from the deployed image
+			if [ -f "${SUBVOL}/etc/kernel/cmdline" ]; then
+				local kernel_cmdline_args=$(cat "${SUBVOL}/etc/kernel/cmdline")
+				deployment_arguments="$deployment_arguments ${kernel_cmdline_args}"
+			else
+				TASK_WARNING=1
+				TASK_WARNING_MSG="Could not read '${SUBVOL}/etc/kernel/cmdline': skipped"
 				send_data
 			fi
 
 			# Read additional boot arguments (to be added to the kernel cmdline) from the user file
-			local additional_arguments="$deployment_arguments"
 			if [ -f "${EFI_MOUNT_PATH}/frzr_bootconfig.conf" ]; then
-				local user_bootconf_args=$(cat "${EFI_MOUNT_PATH}/frzr_bootconfig.conf") 
-				additional_arguments="$additional_arguments ${user_bootconf_args}"
+				local user_bootconf_args=$(cat "${EFI_MOUNT_PATH}/frzr_bootconfig.conf")
+				deployment_arguments="$deployment_arguments ${user_bootconf_args}"
 			else
 				TASK_WARNING=1
-				TASK_WARNING_MSG="Could not read '${EFI_MOUNT_PATH}/frzr_bootconfig.conf': deployment cmdline will be used"
+				TASK_WARNING_MSG="Could not read '${EFI_MOUNT_PATH}/frzr_bootconfig.conf': skipped"
 				send_data
 			fi
 
@@ -196,7 +205,7 @@ frzr_bootloader() {
 			fi
 
 			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
-			local efi_update_result=$(prepare_efi_partition "${NAME}" "${EFI_MOUNT_PATH}" "${SUBVOL}/boot" "${additional_arguments}" "${rootfs_uuid}" "${rootfs_subvolid}")
+			local efi_update_result=$(prepare_efi_partition "${NAME}" "${EFI_MOUNT_PATH}" "${SUBVOL}/boot" "${deployment_arguments}" "${rootfs_uuid}" "${rootfs_subvolid}")
 			if echo "${efi_update_result}" | grep -q 'ERROR'; then
 				# bootloader configuration could not be updated
 				TASK_ERROR=1
@@ -221,6 +230,7 @@ frzr_bootloader() {
 
 			RUNNING=false
 			;;
+
 		"FAIL")
 			# This state should only be used if the unlock failed
 
@@ -231,6 +241,7 @@ frzr_bootloader() {
 			send_data
 			RUNNING=false
 			;;
+
 		*)
 			TASK_STATE="UNKNOWN_ERROR"
 
@@ -239,6 +250,7 @@ frzr_bootloader() {
 			send_data
 			RUNNING=false
 			;;
+
 		esac
 	done
 

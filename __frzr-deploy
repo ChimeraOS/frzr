@@ -512,20 +512,6 @@ frzr_deploy() {
 			TASK_STATE="CLEANUP"
 			send_data
 
-			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
-			local efi_update_result=$("${BASH_SOURCE%/*}/frzr-bootloader" "${NAME}")
-			if echo "${efi_update_result}" | grep -Fq 'ERROR'; then
-				# bootloader configuration could not be updated
-				TASK_ERROR=1
-				TASK_ERROR_MSG="Could not update the EFI partition: ${efi_update_result}"
-				STATE="FAIL"
-				send_data
-				continue
-			fi
-
-			# Remove download artifacts (if any)
-			rm -f ${MOUNT_PATH}/*.img.*
-
 			# Lazy umount the deployed system (find all mounted subdirectories under the parent directory and unmount the mounted subdirectories)
 			TASK_MSG="Post-install umount of '${SUBVOL}'"
 			send_data
@@ -556,6 +542,17 @@ frzr_deploy() {
 				continue
 			fi
 
+			# This is used to update the EFI partition: setting up systemd-boot (or whatever else bootlader might be supported) to boot the new deployment
+			local efi_update_result=$("${BASH_SOURCE%/*}/frzr-bootloader" "${NAME}")
+			if echo "${efi_update_result}" | grep -Fq 'ERROR'; then
+				# bootloader configuration could not be updated
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not update the EFI partition: ${efi_update_result}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
 			# Activates the new deployed image by making it the default btrfs subvolume
 			# systemd-equipped initramfs images will automount the default subvolume as the rootfs
 			TASK_MSG="Activating the new deployment (subvolid=${subvolid}) as the default subvolume"
@@ -567,7 +564,10 @@ frzr_deploy() {
 				send_data
 				continue
 			fi
-			
+
+			# Remove download artifacts (if any)
+			rm -f "${MOUNT_PATH}"/*.img*
+
 			STATE="SUCCESS"
 			;;
 		"SUCCESS")

@@ -46,12 +46,6 @@ __Q__ Is it easy to create a proof-of-concept distro that is compatible with frz
 __A__ Absolutely: frzr wants to be hackable and easy to work with in every aspect: just create a btrfs subvolume and run your preferred command to write a rootfs (debootstrap, pacstrap or whatever). Then create a snapshot of it with btrfs send and that file can be deployed on real hardware!
 
 
-__Q__ Can a distro be shipped with its own kernel?
-
-__A__ Yes and this is the preferred method. The user can boot a deployment only if such deployment comes with its own kernel or the user has installed one
-already via the dedicated *frzr kernel* tool!
-
-
 __Q__ Are there rules to follow?
 
 __A__ There are conventions: for example a distro should __NOT__ assume it's the only distro installed, and *SHOULD NOT* cause harm to other deployments for example by writing to the efi partition.
