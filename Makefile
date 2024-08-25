@@ -11,6 +11,9 @@ endif
 
 install:
 	mkdir -p "${PREFIX}/usr/bin"
+	mkdir -p "${PREFIX}/usr/lib/systemd/system"
+	install -m 644 "frzr-autoupdate.service" "${PREFIX}/usr/lib/systemd/system"
+	install -m 644 "frzr-autoupdate.timer" "${PREFIX}/usr/lib/systemd/system"
 	install -m 755 "frzr" "${PREFIX}/usr/bin"
 	install -m 755 "__frzr" "${PREFIX}/usr/bin"
 	install -m 755 "frzr-deploy" "${PREFIX}/usr/bin"
