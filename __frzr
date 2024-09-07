@@ -63,10 +63,10 @@ write_tracker_file() {
 			rm -f "${TRACKER_FILE_PATH}"
 			sg frzr -c "touch ${TRACKER_FILE_PATH}"
 		else
-			sudo rm -rf "${TRACKER_FILE_PATH}" 
-			sudo touch "${TRACKER_FILE_PATH}"
-			sudo chown :frzr "${TRACKER_FILE_PATH}"
-			sudo chmod g+w "${TRACKER_FILE_PATH}"
+			rm -rf "${TRACKER_FILE_PATH}"
+			touch "${TRACKER_FILE_PATH}"
+			chown :frzr "${TRACKER_FILE_PATH}"
+			chmod g+w "${TRACKER_FILE_PATH}"
 		fi
 	fi
 
