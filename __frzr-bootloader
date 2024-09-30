@@ -32,6 +32,15 @@ frzr_bootloader() {
 				continue
 			fi
 
+			local version=$("${BASH_SOURCE%/*}/frzr-version")
+			if echo "${version}" | grep -Fq "ERROR"; then
+				TASK_ERROR=1
+				TASK_ERROR_MSG="Could not fetch frzr version: ${version}"
+				STATE="FAIL"
+				send_data
+				continue
+			fi
+
 			# Make sure the frzr_root is mounted during the deployment procedure
 			# this code is based on the fact that when a btrfs filesystem is created
 			# the default subvolid that is created contextually has the ID set to 256
@@ -194,6 +203,9 @@ frzr_bootloader() {
 				TASK_WARNING_MSG="Could not read '${EFI_MOUNT_PATH}/frzr_bootconfig.conf': skipped"
 				send_data
 			fi
+
+			local dyn_cmdline=$(generate_additional_cmdline "${NAME}" "${SUBVOL}" "${MOUNT_PATH}" "${version}")
+			deployment_arguments="$deployment_arguments ${dyn_cmdline}"
 
 			# Make sure the deployment has a /boot directory
 			if [ ! -d "${SUBVOL}/boot" ]; then

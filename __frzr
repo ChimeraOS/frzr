@@ -125,7 +125,7 @@ frzr_umount_chroot() {
 	umount -l "${CHROOT_PATH}/dev"
 }
 
-# Get the UUID of the desk containing the given directory
+# Get the UUID of the disk containing the given directory
 # $1 the directory
 # stdout UUID (compatible with /dev/disk/by-uuid/), an error otherwise
 get_uuid() {
@@ -156,6 +156,10 @@ get_uuid() {
 # return 0 if the directory is a subvolume, 1 otherwise
 is_btrfs_subvolume() {
 	local dir=$1
+	if [ ! -d "${dir}" ]; then
+		return 1
+	fi
+
 	[ "$(stat -f --format="%T" "$dir")" == "btrfs" ] || return 1
 	inode="$(stat --format="%i" "$dir")"
 	case "$inode" in
@@ -494,10 +498,10 @@ check_uefi() {
 }
 
 # Check if there are migrations available in the image to be deployed and run them one by one
-# Note: migrations are functions named either post_install or chroot_post_install inside (executable) files with .migration extension
+# Note: migrations are functions named either post_install inside (executable) files with .migration extension,
 # stored inside $2/usr/lib/frzr.d/
 #
-# Every post_install function will be run in a subshell, while every chroot_post_install will be run inside a chroot.
+# Every post_install function will be run in a subshell.
 #
 # PRE=$2/usr/lib/frzr.d is a directory
 # POST=
@@ -661,6 +665,58 @@ execute_removal() {
 		echo "OK"
 	else
 		echo "${error}"
+	fi
+}
+
+# Check if there are bootloader hooks available in the image to be deployed and run them one by one
+# Note: bootloader hooks are functions named boot_cmdline inside (executable) files with .bootloader extension
+# stored inside $2/usr/lib/frzr.d/
+#
+# Every boot_cmdline function will be run in a subshell.
+#
+# PRE=$2/usr/lib/frzr.d is a directory
+# POST=
+#
+# $1 the deployment version; this is also the deployment name (the name of the subvolume to be used as rootfs)
+# $2 the deployment subvolume
+# $3 frzr_root the mounted path to the main btrfs subvolume (the one that contains home as a subvolume)
+# $4 frzr version string
+# stdout additional kernel cmdline arguments
+generate_additional_cmdline() {
+	local deployment_version=$1
+	local deployment=$2
+	local frzr_root=$3
+	local frzr_version=$4
+
+	local additional_cmdline=" "
+
+	if compgen -G "${deployment}"/usr/lib/frzr.d/*.bootloader >/dev/null; then
+		for m in "${deployment}"/usr/lib/frzr.d/*.bootloader; do
+			unset frzr_migration_version
+
+			unset -f boot_cmdline
+
+			# source the migration
+			. $m
+
+			# only execute migrations marked for newer frzr versions
+			if [ ! -z "$frzr_migration_version" ] && [ $frzr_migration_version -gt 0 ]; then
+				if [ "$(type -t boot_cmdline)" == function ] ; then
+
+					# Run migration and check for errors
+					local this_cmdline=$(boot_cmdline "${frzr_root}" "${deployment}" "${deployment_version}" "${frzr_version}")
+					additional_cmdline="$additional_cmdline ${this_cmdline}"
+				fi
+			fi
+
+			unset -f boot_cmdline
+
+			unset frzr_migration_version
+		done
+
+		echo "$additional_cmdline"
+	else
+		echo ""
 	fi
 }
 
