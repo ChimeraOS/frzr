@@ -125,29 +125,29 @@ frzr_umount_chroot() {
 	umount -l "${CHROOT_PATH}/dev"
 }
 
-# Get the UUID of the disk containing the given directory
-# $1 the directory
+# Get the UUID of the disk containing the given directory or file
+# $1 the path of the directory or file
 # stdout UUID (compatible with /dev/disk/by-uuid/), an error otherwise
 get_uuid() {
-	local dir=$1
+	local inode=$1
 
-	if [ -d "${dir}" ]; then
-		local subcmd=$(df -P "${dir}" | tail -n1 | cut -d' ' -f1)
+	if [ -d "${inode}" ] || [ -f "${inode}" ]; then
+		local subcmd=$(df -P "${inode}" | tail -n1 | cut -d' ' -f1)
 
 		if [ "$subcmd" = "-" ]; then
-			subcmd=$(findmnt --target "${dir}" | grep "/dev" | tail -n1 | cut -d' ' -f2 )
+			subcmd=$(findmnt --target "${inode}" | grep "/dev" | tail -n1 | cut -d' ' -f2 )
 		fi
 
 		local possible_uuid=$(lsblk -n -o UUID "${subcmd}")
 		local filtered_uuid=$(echo "${possible_uuid}" | grep -E '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
 
 		if [ -z "$filtered_uuid" ]; then
-			echo "ERROR: Cannot fetch the UUID for directory '${dir}'"
+			echo "ERROR: Cannot fetch the UUID for directory '${inode}'"
 		else
 			echo "${filtered_uuid}"
 		fi
 	else
-		echo "ERROR: '${dir}' is not a valid directory"
+		echo "ERROR: '${inode}' is not a valid directory"
 	fi
 }
 
