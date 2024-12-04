@@ -2,15 +2,6 @@
 
 set -Ee
 
-if ! groups | grep -Fq "frzr"; then
-	if [ "$EUID" -ne 0 ]; then
-		echo "Current user is not in the frzr group"
-		exit 1
-	else
-		echo "Running frzr as root, but root is not a member of frzr group"
-	fi
-fi
-
 # Import methods
 source "${BASH_SOURCE%/*}/__frzr" "$@"
 
