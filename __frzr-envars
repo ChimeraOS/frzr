@@ -14,10 +14,6 @@ fi
 
 UPGRADE=0
 
-if [ -z "$REPAIR_INSTALL" ]; then
-	REPAIR_INSTALL=0 # Set to 1 if you want to do a repair install. This should be set by frzr-bootstrap later if an existing install is found.
-fi
-
 NAME=""          # Name of the OS to be deployed
 
 if [ -z "$MOUNT_PATH" ]; then
