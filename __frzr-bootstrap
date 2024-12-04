@@ -238,7 +238,7 @@ frzr_bootstrap() {
 	RUNNING=true
 
 	# Check for the GUI installer
-	if [ -n "$1" ] && [ -n "$2" ]; then
+	if [ "${SHOW_UI}" = "0" ] && [ "${FRZR_INSTALLER}" = "1" ]; then
 		STATE="FORMAT"
 		MOUNT_PATH=/tmp/frzr_root
 	else
