@@ -278,6 +278,12 @@ frzr_bootstrap() {
 			else
 				echo "specified disk is '$DISK'"
 			fi
+
+			# Check if DISK starts with '/dev/' and if not prepend that
+			if [[ $DISK != /dev/* ]]; then
+				DISK="/dev/$DISK"
+			fi
+
 			echo "Checking for existing FRZR deployments"
 			# Checking for existing installation
 
