@@ -9,8 +9,8 @@ source "${BASH_SOURCE%/*}/__frzr" "$@"
 # $1 target (physical) disk
 # $2 frzr_root main subvolume mount path (the one that contains the home subvolume)
 repair_install() {
-	local disk=${1}
-	local frzr_root=${2}
+	local disk="${1}"
+	local frzr_root="${2}"
 
 	# 1st partition is always EFI
 	local boot_efi=$(fdisk -o Device --list ${disk} | grep "^${disk}.*1$")
@@ -25,9 +25,12 @@ repair_install() {
 		((frzr_root_part_number++))
 		install_mount=$(fdisk -o Device --list ${disk} | grep "^${disk}.*${frzr_root_part_number}$")
 		install_mount_label=$(blkid -s LABEL -o value "${install_mount}")
+		if [[ $install_mount_label == "frzr_root" ]]; then
+			break
+		fi
 	done
 	
-	if [[ $install_mount_label != "frzr_root" ]]; then
+	if [[ $install_mount_label == "frzr_root" ]]; then
 		# make sure the directory to be used as the frzr_root mountpoint does exists
 		mkdir -p "${frzr_root}"
 
@@ -43,7 +46,7 @@ repair_install() {
 
 		# clear out the etc overlay upperdir
 		if [ -d "${frzr_root}/etc/" ]; then
-			rm -rf ${frzr_root}/etc/*
+			rm -rf "${frzr_root}"/etc/*
 		else
 			mkdir -p "${frzr_root}/etc/"
 		fi
@@ -69,16 +72,38 @@ repair_install() {
 		rm -rf "${frzr_root}"/efi/*
 
 		# Delete every installed system
-		if [ -d "${frzr_root}"/deployments ]; then
-			echo "deleting subvolume(s)..."
-			btrfs subvolume delete ${frzr_root}/deployments/* || true
+		if [ -d "${frzr_root}/deployments" ]; then
+			echo "deleting deployment(s)..."
+			for subvol in "${frzr_root}/deployments/"*; do
+				if [ -d "$subvol" ]; then
+					btrfs subvolume delete "$subvol" || true
+				fi
+			done
+		fi
+
+		# Delete every system overlays
+		if [ -d "${frzr_root}/deployments_data" ]; then
+			echo "deleting deployment(s) data..."
+			for subvol in "${frzr_root}/deployments_data/"*; do
+				if [ -d "$subvol/usr_overlay" ]; then
+					btrfs subvolume delete "$subvol/usr_overlay" || true
+				fi
+
+				if [ -d "$subvol/boot_overlay" ]; then
+					btrfs subvolume delete "$subvol/boot_overlay" || true
+				fi
+
+				if [ -d "$subvol" ]; then
+					btrfs subvolume delete "$subvol" || true
+				fi
+			done
 		fi
 
 		# TODO: if a minimal/recovery system has to installed in the main partition here is the place to do just that.
 
 		echo "OK"
 	else
-		echo "ERROR: frzr_root not found"
+		echo "ERROR: 'frzr_root' not found, '${install_mount_label}' was found instead on ${install_mount}"
 	fi
 }
 
