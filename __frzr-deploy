@@ -3,105 +3,6 @@
 set -e
 set -o pipefail
 
-get_img_url() {
-	CHANNEL=$1
-
-	# Order by creation date in reverse
-	result=$(jq 'sort_by(.created_at) | reverse')
-
-	# Remove entries which have not been completed uploading
-	result=$(echo "${result}" | jq 'del(.[] | select(.assets[].state != "uploaded"))')
-
-	# Always check for stable date
-	if stable_release_date=$(echo "${result}" | jq -er '[ .[] |
-			select(.prerelease==false) ] |
-			first |
-			.created_at'
-		); then
-		# Check for stable url, this is the latest that have prerelease == false
-		stable_download_url=$(echo "${result}" | jq -r '[ .[] |
-			select(.prerelease==false) ] |
-			first |
-			.assets[] |
-			select(.browser_download_url | test("img")) |
-			.browser_download_url'
-		)
-	else
-		# No stable channel found, pick some (old) values
-		# For testing/ channel selection
-		stable_release_date="1970-01-01T00:00:00Z"
-		stable_download_url=""
-	fi
-
-
-	# Filter channels by release naming conventions
-	if [[ "$CHANNEL" =~ ^[0-9]+\-?[0-9]*$ ]] ; then
-		# Check first for explicit version numbers between stable releases
-		# Useful for downgrading
-		result=$(echo "${result}" | jq -r "[ .[] |
-					select(.prerelease==false) |
-					select(.name|test(\" ${CHANNEL}\$\")) ] |
-					first |
-					.assets[] |
-					select(.browser_download_url | test(\"img\")) |
-					.browser_download_url"
-				)
-	elif [ "$CHANNEL" == "stable" ]; then
-		result=$stable_download_url
-	elif [ "$CHANNEL" == "testing" ]; then
-		# Testing channel have prerelease = true and no other tags
-		if testing_release_date=$(echo "${result}" | jq -er '[ .[] |
-			select(.prerelease==true) |
-			select(.name|test("\\[.*\\]")|not) ] |
-			first |
-			.created_at'
-			); then
-			testing_url=$(echo "${result}" | jq -r '[ .[] |
-						select(.prerelease==true) |
-						select(.name|test("\\[.*\\]")|not) ] |
-						first |
-						.assets[] |
-						select(.browser_download_url | test("img")) |
-						.browser_download_url'
-					)
-			if [ $(date -d $testing_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
-				result=$stable_download_url
-			else
-				result=$testing_url
-			fi
-		else
-			result=$stable_download_url
-		fi
-	else
-		# Match any release with CHANNEL as a tag (including unstable)
-		result=$(echo ${result} | jq "[ .[] | select(.prerelease==true) | select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ]")
-			if unstable_release_date=$(echo "${result}" | jq -er "[ .[] |
-					select(.prerelease==true) |
-					select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
-					first |
-					.created_at"
-				); then
-			unstable_url=$(echo "${result}" | jq -r "[ .[] |
-						select(.prerelease==true) |
-						select(.name|test(\"\\\[${CHANNEL}\\\]\" ; \"i\")) ] |
-						first |
-						.assets[] |
-						select(.browser_download_url | test(\"img\")) |
-						.browser_download_url"
-					)
-			if [ $(date -d $unstable_release_date +%s) -le $(date -d $stable_release_date +%s) ]; then
-				result=$stable_download_url
-			else
-				result=$unstable_url
-			fi
-		else
-			result=$stable_download_url
-		fi
-	fi
-
-	echo $result
-}
-
 get_boot_cfg() {
 	local version=${1}
 	local amd_ucode=${2}
@@ -150,6 +51,14 @@ clean_progress() {
 			last_value=$value
 		fi
 	done
+}
+
+json() {
+	jq --raw-output $1 2> /dev/null || echo ""
+}
+
+ok() {
+        [ -n "$1" ] && [ "$1" != "null" ]
 }
 
 
@@ -260,26 +169,24 @@ main() {
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE=${FRZR_SOURCE}
 	else
-		REPO=$(echo "${SOURCE}" | cut -f 1 -d ':')
-		CHANNEL=$(echo "${SOURCE}" | cut -f 2 -d ':')
+		# if no repo specified, default to ghcr.io
+		count=$(echo "${SOURCE}" | grep -o '/' | wc -l)
+		if [ $count -eq 1 ]; then
+			SOURCE="ghcr.io/${SOURCE}"
+		fi
 
-		RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
+		MANIFEST=$(oras manifest fetch ${SOURCE} 2> /dev/null || echo "")
+		FILE_NAME=$(echo "${MANIFEST}" | \
+			json '.layers[0].annotations."org.opencontainers.image.title"')
+		CHECKSUM=$(echo "${MANIFEST}" | \
+			json '.layers[0].digest' | cut -f 2 -d ':')
 
-		IMG_URL=$(curl --http1.1 -L -s "${RELEASES_URL}" | get_img_url "${CHANNEL}")
-
-		if [ -z "$IMG_URL" ] || [ "$IMG_URL" == "null" ]; then
+		if ! ok "${MANIFEST}" || ! ok "${FILE_NAME}" || ! ok "${CHECKSUM}" ; then
 			echo "No matching source found"
-			if curl --http1.1 -L -s "${RELEASES_URL}" | grep "rate limit" > /dev/null; then
-				echo "GitHub API rate limit exceeded"
-				exit 29
-			fi
 			exit 1
 		fi
 
-		FILE_NAME=$(basename ${IMG_URL})
 		NAME=$(echo "${FILE_NAME}" | cut -f 1 -d '.')
-		BASE_URL=$(dirname "${IMG_URL}")
-		CHECKSUM=$(curl --http1.1 -L -s "${BASE_URL}/sha256sum.txt" | cut -f -1 -d ' ')
 		SUBVOL="${DEPLOY_PATH}/${NAME}"
 		IMG_FILE="${MOUNT_PATH}/${FILE_NAME}"
 
@@ -294,15 +201,17 @@ main() {
 		fi
 
 		if [ $FRZR_STEAM_PROGRESS -eq 1 ]; then
-			curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
-			stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 91 %
+			unbuffer oras pull --output ${MOUNT_PATH} ${SOURCE} 2>&1 | \
+				grep --line-buffered -oP '\d+(?=\.\d+%)' | \
+				clean_progress 91 %
 		elif [ -z ${SHOW_UI} ]; then
 			echo "downloading ${NAME}..."
-			curl --http1.1 -L -o "${IMG_FILE}" -C - "${IMG_URL}"
+			oras pull --output ${MOUNT_PATH} ${SOURCE}
 		else
-			curl --http1.1 -# -L -o "${IMG_FILE}" -C - "${IMG_URL}" 2>&1 | \
-			stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '[0-9]*+(?=.[0-9])' | clean_progress 100 | \
-			whiptail --gauge "Downloading system image (${NAME})" 10 50 0
+			unbuffer oras pull --output ${MOUNT_PATH} ${SOURCE} 2>&1 | \
+				grep --line-buffered -oP '\d+(?=\.\d+%)' | \
+				clean_progress 100 | \
+				whiptail --gauge "Downloading system image (${NAME})" 10 50 0
 		fi
 
 		CHECKSUM2=`sha256sum "${IMG_FILE}" | cut -d' ' -f 1`
